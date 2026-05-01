@@ -1,13 +1,20 @@
-# cp-ssr-binary-trials
+# CP-SSR-Binary-Trials
 
 Reproducibility code for the manuscript:
 
 > **Conditional Power Promising Zone Sample Size Re-estimation Inflates
 > Type I Error in Single-Arm Binary Trials**
 
+Repository: <https://github.com/evidenceinthewild/CP-SSR-Binary-Trials>
+
 This repository contains the simulation code, exact-enumeration operating
 characteristic (OC) calculations, and the Quarto source for the manuscript
 and all of its tables and figures.
+
+```bash
+git clone https://github.com/evidenceinthewild/CP-SSR-Binary-Trials.git
+cd CP-SSR-Binary-Trials
+```
 
 ## Summary of the paper
 
@@ -17,13 +24,13 @@ test preserves the type I error rate without alpha adjustment. The same
 construction is sometimes carried over to single-arm binary trials with a
 plain z-test final analysis. We show by exact enumeration that this carry-
 over does not preserve nominal alpha. In our representative oncology base
-setting, no value of the promising-zone lower threshold ($\mathrm{CP}_L$)
-on a fine grid achieves $\mathrm{T1E} \leq \alpha$. Across a wider
-generalizability grid of five $(p_0, p_1, n_\text{int}, N_\text{init},
-N_\text{max})$ configurations, the picture is mixed: some configurations
-have $\mathrm{CP}_L$ values that control T1E and some do not, because the
-discrete z-test critical count's rounding bias changes sign across
-configurations. Tuning $\mathrm{CP}_L$ on a fixed grid is therefore
+setting, no value of the promising-zone lower threshold ($CP_L$)
+on a fine grid achieves $T1E \leq \alpha$. Across a wider
+generalizability grid of five $(p_0, p_1, n_{int}, N_{init}, N_{max})$
+configurations, the picture is mixed: some configurations have $CP_L$
+values that control T1E and some do not, because the discrete z-test
+critical count's rounding bias changes sign across configurations.
+Tuning $CP_L$ on a fixed grid is therefore
 unreliable: a value that controls T1E in one design may not in another.
 A Bayesian predictive-probability SSR with a posterior-probability final
 rule controls type I error in the same setting, and the symmetric
@@ -35,7 +42,7 @@ source of the inflation.
 ## Repository layout
 
 ```
-cp-ssr-binary-trials/
+CP-SSR-Binary-Trials/
 ├── README.md
 ├── LICENSE
 ├── CP_PromisingZone_SSR_TypeIError.qmd   # manuscript source (sources R/analysis.R)
@@ -120,8 +127,15 @@ interim looks); they take an explicit `n_sim` argument.
 
 ## Citation
 
-If you use this code, please cite the manuscript (citation block to be
-added on acceptance).
+If you use this code, please cite the manuscript (full bibliographic
+record to be added on acceptance) and the repository:
+
+```
+Qian, L. (2026). CP-SSR-Binary-Trials: Reproducibility code for
+"Conditional Power Promising Zone Sample Size Re-estimation Inflates
+Type I Error in Single-Arm Binary Trials".
+https://github.com/evidenceinthewild/CP-SSR-Binary-Trials
+```
 
 ## License
 

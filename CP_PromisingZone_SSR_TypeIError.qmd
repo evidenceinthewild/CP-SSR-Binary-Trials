@@ -1956,7 +1956,9 @@ calibration surface is far less irregular than the CP_L surface.
 # Code and Data Availability
 
 All code used in this paper is released as the public R/Quarto repository
-**`cp-ssr-binary-trials`** *(GitHub URL to be added at submission)*. The
+**`CP-SSR-Binary-Trials`** at
+[https://github.com/evidenceinthewild/CP-SSR-Binary-Trials](https://github.com/evidenceinthewild/CP-SSR-Binary-Trials).
+The
 repository contains the Quarto manuscript source (`CP_PromisingZone_SSR_TypeIError.qmd`),
 the bibliography (`references.bib`), and an R script (`R/analysis.R`)
 that defines the exact-enumeration helpers (`cp_oc_exact`, `bayes_oc_exact`,
