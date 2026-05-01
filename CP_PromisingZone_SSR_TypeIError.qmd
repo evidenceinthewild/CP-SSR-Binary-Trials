@@ -1,56 +1,32 @@
 ---
 title: "Conditional Power Promising Zone Sample Size Re-estimation Inflates Type I Error in Single-Arm Binary Trials"
 subtitle: "An Exact-Enumeration Study and Comparison with Bayesian Predictive Probability SSR"
-author: "Lu Qian · Zetyra | Evidence in the Wild"
+author: "Author(s) anonymized for peer review"
 date: today
 abstract: |
-  **Background.** The Mehta–Pocock conditional-power (CP) promising-zone
-  framework is widely used for sample size re-estimation (SSR) in industry
-  practice. Its analytic Type I error guarantee derives from the
-  inverse-normal combination test in two-arm trials with continuous test
-  statistics, and is commonly imported by analogy into single-arm trials
-  with binary endpoints. We test that import directly.
-
-  **Methods.** By exact enumeration of the joint interim-and-final
-  binomial distribution, we compute Type I error of CP-promising-zone
-  SSR with a one-sided one-proportion *z*-test final analysis across a
-  grid of promising-lower-bound ($\text{CP}_L$) values and five ($p_0$, $p_1$,
-  $n_\text{int}$, $N_\text{init}$, $N_\text{max}$) design configurations. We compare against
-  Bayesian predictive-probability SSR with separate interim-efficacy
-  and final-analysis posterior thresholds, and run a symmetric
-  comparison in which the CP-driven SSR is paired with a Bayesian
-  posterior final analysis to isolate which component drives the
-  Bayesian advantage.
-
-  **Results.** In a representative oncology base setting
-  ($p_0$ = 0.23, $p_1$ = 0.35, $\alpha$ = 0.05, $N_\text{init}$ = 84, $n_\text{int}$ = 65,
-  $N_\text{max}$ = 200), exact Type I error of CP-promising-zone SSR with
-  *z*-test final sits above $\alpha$ at every $\text{CP}_L$ on the grid. Across five
-  design configurations the discrete *z*-test critical count's
-  rounding bias changes sign, so $\text{CP}_L$ values that control T1E in one
-  configuration may not in another. Bayesian PP SSR's exact T1E is
-  monotone in the final-analysis threshold and far easier to
-  calibrate than the $\text{CP}_L$ surface, even though it remains stepwise
-  on the discrete integer grid. The symmetric comparison shows that
-  CP-driven SSR paired with a Bayesian posterior final is also
-  calibratable, switching the final analysis alone is *sufficient*
-  to rescue the CP design's T1E control in this setting, even with
-  the same CP-zone SSR logic. We do not implement the complementary
-  variant (PP-driven SSR with a *z*-test final), so the symmetric
-  comparison is partial: it isolates the final-analysis rule as a
-  sufficient cause of the inflation but does not separate it from
-  the SSR-logic contribution in a fully two-by-two way.
-
-  **Conclusions.** CP-promising-zone SSR with a normal-approximation
-  *z*-test final analysis cannot be calibrated to nominal $\alpha$ by a
-  fixed-$\text{CP}_L$ rule that generalises across single-arm binary designs.
-  The inflation traces to the integer arithmetic of the *z*-test
-  critical count combined with SSR-driven changes in N. Practitioners
-  who want calibrated T1E should replace the *z*-test final with a
-  calibrated final-analysis rule, for example, a Bayesian posterior
-  threshold, or an exactly-calibrated critical count chosen so that
-  the fixed-N test attains nominal $\alpha$, or adopt a Bayesian PP design
-  end-to-end.
+  The Mehta-Pocock conditional-power (CP) promising-zone framework
+  is widely used for sample size re-estimation, with Type I error
+  control derived for two-arm trials with continuous test statistics
+  using an inverse-normal combination test. We examine a common
+  extrapolation of this framework to single-arm binary trials using
+  a one-sided one-proportion z-test final analysis. Exact enumeration
+  of the joint interim-and-final binomial distribution shows that
+  this extrapolation can inflate Type I error. In a representative
+  oncology setting, exact Type I error exceeded the nominal 0.05
+  level for every promising-zone lower threshold evaluated. Across
+  five design configurations, the z-test critical count's
+  discreteness bias changed sign, so thresholds controlling Type I
+  error in one setting did not necessarily control it in another.
+  In contrast, Bayesian predictive-probability sample size
+  re-estimation with separate interim and final posterior thresholds
+  produced a monotone, directly calibratable Type I error curve.
+  A symmetric comparison showed that pairing CP-driven sample size
+  re-estimation with a Bayesian posterior final analysis restored
+  calibration, identifying the final decision rule as a sufficient
+  cause of the observed inflation. These results support
+  design-specific exact Type I error reporting for single-arm binary
+  promising-zone designs, or replacement of the z-test final analysis
+  with a calibrated alternative.
 keywords: [adaptive design, sample size re-estimation, conditional power, predictive probability, single-arm phase II, Type I error]
 format:
   html:
@@ -66,6 +42,9 @@ format:
     fig-height: 5.5
   pdf:
     documentclass: scrartcl
+    # No titlepage option: keep the abstract on the cover page with the
+    # title/author/date. The \tableofcontents redefinition below forces a
+    # page break after the abstract so the TOC starts on its own page.
     papersize: letter
     geometry:
       - margin=1in
@@ -97,6 +76,11 @@ format:
         \usepackage{longtable}
         \usepackage{array}
         \usepackage{pdflscape}
+        % Force a clean page break after the abstract so that the TOC
+        % starts on its own page (page 2). This keeps the title block
+        % and abstract together on the cover page.
+        \let\OriginalTOC\tableofcontents
+        \renewcommand{\tableofcontents}{\clearpage\OriginalTOC}
         % Uncomment for journal-review version with line numbers:
         % \usepackage{lineno}
         % \linenumbers
@@ -119,14 +103,32 @@ library(latex2exp)   # TeX() for math in ggplot subtitles/labels
 
 # All helper, simulator, and exact-OC functions are defined in R/analysis.R.
 # They are sourced here so the manuscript code chunks below stay focused on
-# parameter setup, sweeps, and presentation.
-source("R/analysis.R")
+# parameter setup, sweeps, and presentation. We resolve the script's path
+# relative to the qmd file so the render works regardless of the working
+# directory at the time `quarto render` is invoked.
+.analysis_path <- local({
+  candidates <- c(
+    "R/analysis.R",                       # running from the repo root
+    "cp-ssr-binary-trials/R/analysis.R",  # running from one level above
+    file.path(dirname(knitr::current_input(dir = TRUE)), "R", "analysis.R")
+  )
+  hit <- candidates[file.exists(candidates)]
+  if (length(hit) == 0L) {
+    stop("Could not locate R/analysis.R. Run `quarto render` from the ",
+         "CP-SSR-Binary-Trials repo root, or place R/analysis.R next to ",
+         "the .qmd file.")
+  }
+  hit[[1L]]
+})
+source(.analysis_path)
 
 set.seed(20260414)
 # N_SIM = 100,000 is the outline target. Use 5,000–50,000 for development
 # (CP and Bayesian sweeps + generalizability scale roughly linearly in N_SIM).
 N_SIM <- 10000L
 ```
+
+{{< pagebreak >}}
 
 # Introduction
 
@@ -1955,11 +1957,12 @@ calibration surface is far less irregular than the CP_L surface.
 
 # Code and Data Availability
 
-All code used in this paper is released as the public R/Quarto repository
-**`CP-SSR-Binary-Trials`** at
-[https://github.com/evidenceinthewild/CP-SSR-Binary-Trials](https://github.com/evidenceinthewild/CP-SSR-Binary-Trials).
-The
-repository contains the Quarto manuscript source (`CP_PromisingZone_SSR_TypeIError.qmd`),
+All code used in this paper is released as a public R/Quarto repository,
+presented anonymously for double-blind peer review at
+<https://anonymous.4open.science/r/CP-SSR-Binary-Trials-8DB8/>. The
+non-anonymized public GitHub repository will be disclosed in the
+camera-ready version after acceptance. The repository contains the Quarto
+manuscript source (`CP_PromisingZone_SSR_TypeIError.qmd`),
 the bibliography (`references.bib`), and an R script (`R/analysis.R`)
 that defines the exact-enumeration helpers (`cp_oc_exact`, `bayes_oc_exact`,
 `cp_oc_post_final`, `fixed_n_t1e`) and simulator-based fallback functions
@@ -1977,8 +1980,15 @@ numerical result is computed from the exact enumeration code in
 :::
 
 
-# Session Info
+<!--
+Session info is omitted from the journal-submission PDF. The exact R
+version and package versions used to render this manuscript are pinned
+in the public repository's `R/analysis.R` and reproducible via the
+included `.qmd` source. To re-enable session info during development,
+delete the surrounding HTML comment markers.
 
 ```{r session}
+#| eval: false
 sessionInfo()
 ```
+-->

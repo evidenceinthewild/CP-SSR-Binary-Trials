@@ -5,16 +5,13 @@ Reproducibility code for the manuscript:
 > **Conditional Power Promising Zone Sample Size Re-estimation Inflates
 > Type I Error in Single-Arm Binary Trials**
 
-Repository: <https://github.com/evidenceinthewild/CP-SSR-Binary-Trials>
+Repository: <https://anonymous.4open.science/r/CP-SSR-Binary-Trials-8DB8/>
 
 This repository contains the simulation code, exact-enumeration operating
 characteristic (OC) calculations, and the Quarto source for the manuscript
 and all of its tables and figures.
 
-```bash
-git clone https://github.com/evidenceinthewild/CP-SSR-Binary-Trials.git
-cd CP-SSR-Binary-Trials
-```
+Individual files can be browsed and downloaded from the link above.
 
 ## Summary of the paper
 
@@ -127,15 +124,8 @@ interim looks); they take an explicit `n_sim` argument.
 
 ## Citation
 
-If you use this code, please cite the manuscript (full bibliographic
-record to be added on acceptance) and the repository:
-
-```
-Qian, L. (2026). CP-SSR-Binary-Trials: Reproducibility code for
-"Conditional Power Promising Zone Sample Size Re-estimation Inflates
-Type I Error in Single-Arm Binary Trials".
-https://github.com/evidenceinthewild/CP-SSR-Binary-Trials
-```
+A full citation (authors, journal reference, and DOI) will be added on
+acceptance.
 
 ## License
 
