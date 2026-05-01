@@ -1,0 +1,29 @@
+# Quarto / LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*_files/
+*_cache/
+.quarto/
+*.tex
+
+# Rendered outputs (kept locally, not committed)
+CP_PromisingZone_SSR_TypeIError.pdf
+CP_PromisingZone_SSR_TypeIError.html
+
+# RStudio / R
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# OS noise
+.DS_Store
+Thumbs.db

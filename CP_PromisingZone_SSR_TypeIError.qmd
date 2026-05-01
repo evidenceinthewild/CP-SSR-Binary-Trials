@@ -1,0 +1,1982 @@
+---
+title: "Conditional Power Promising Zone Sample Size Re-estimation Inflates Type I Error in Single-Arm Binary Trials"
+subtitle: "An Exact-Enumeration Study and Comparison with Bayesian Predictive Probability SSR"
+author: "Lu Qian · Zetyra | Evidence in the Wild"
+date: today
+abstract: |
+  **Background.** The Mehta–Pocock conditional-power (CP) promising-zone
+  framework is widely used for sample size re-estimation (SSR) in industry
+  practice. Its analytic Type I error guarantee derives from the
+  inverse-normal combination test in two-arm trials with continuous test
+  statistics, and is commonly imported by analogy into single-arm trials
+  with binary endpoints. We test that import directly.
+
+  **Methods.** By exact enumeration of the joint interim-and-final
+  binomial distribution, we compute Type I error of CP-promising-zone
+  SSR with a one-sided one-proportion *z*-test final analysis across a
+  grid of promising-lower-bound ($\text{CP}_L$) values and five ($p_0$, $p_1$,
+  $n_\text{int}$, $N_\text{init}$, $N_\text{max}$) design configurations. We compare against
+  Bayesian predictive-probability SSR with separate interim-efficacy
+  and final-analysis posterior thresholds, and run a symmetric
+  comparison in which the CP-driven SSR is paired with a Bayesian
+  posterior final analysis to isolate which component drives the
+  Bayesian advantage.
+
+  **Results.** In a representative oncology base setting
+  ($p_0$ = 0.23, $p_1$ = 0.35, $\alpha$ = 0.05, $N_\text{init}$ = 84, $n_\text{int}$ = 65,
+  $N_\text{max}$ = 200), exact Type I error of CP-promising-zone SSR with
+  *z*-test final sits above $\alpha$ at every $\text{CP}_L$ on the grid. Across five
+  design configurations the discrete *z*-test critical count's
+  rounding bias changes sign, so $\text{CP}_L$ values that control T1E in one
+  configuration may not in another. Bayesian PP SSR's exact T1E is
+  monotone in the final-analysis threshold and far easier to
+  calibrate than the $\text{CP}_L$ surface, even though it remains stepwise
+  on the discrete integer grid. The symmetric comparison shows that
+  CP-driven SSR paired with a Bayesian posterior final is also
+  calibratable, switching the final analysis alone is *sufficient*
+  to rescue the CP design's T1E control in this setting, even with
+  the same CP-zone SSR logic. We do not implement the complementary
+  variant (PP-driven SSR with a *z*-test final), so the symmetric
+  comparison is partial: it isolates the final-analysis rule as a
+  sufficient cause of the inflation but does not separate it from
+  the SSR-logic contribution in a fully two-by-two way.
+
+  **Conclusions.** CP-promising-zone SSR with a normal-approximation
+  *z*-test final analysis cannot be calibrated to nominal $\alpha$ by a
+  fixed-$\text{CP}_L$ rule that generalises across single-arm binary designs.
+  The inflation traces to the integer arithmetic of the *z*-test
+  critical count combined with SSR-driven changes in N. Practitioners
+  who want calibrated T1E should replace the *z*-test final with a
+  calibrated final-analysis rule, for example, a Bayesian posterior
+  threshold, or an exactly-calibrated critical count chosen so that
+  the fixed-N test attains nominal $\alpha$, or adopt a Bayesian PP design
+  end-to-end.
+keywords: [adaptive design, sample size re-estimation, conditional power, predictive probability, single-arm phase II, Type I error]
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-title: "Contents"
+    number-sections: true
+    self-contained: true
+    code-fold: true
+    code-summary: "Show code"
+    fig-width: 9
+    fig-height: 5.5
+  pdf:
+    documentclass: scrartcl
+    papersize: letter
+    geometry:
+      - margin=1in
+    fontsize: 11pt
+    linestretch: 1.25
+    colorlinks: true
+    linkcolor: NavyBlue
+    citecolor: NavyBlue
+    urlcolor: NavyBlue
+    toc: true
+    toc-depth: 2
+    number-sections: true
+    # Match the HTML rendering: same width/aspect ratio + PNG (rasterized,
+    # anti-aliased) device so plots in the PDF look the same as in the HTML.
+    fig-width: 9
+    fig-height: 5.5
+    fig-format: png
+    fig-dpi: 200
+    fig-pos: "H"
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    code-overflow: wrap
+    keep-tex: true
+    echo: false
+    include-in-header:
+      text: |
+        \usepackage{float}
+        \usepackage{booktabs}
+        \usepackage{longtable}
+        \usepackage{array}
+        \usepackage{pdflscape}
+        % Uncomment for journal-review version with line numbers:
+        % \usepackage{lineno}
+        % \linenumbers
+execute:
+  echo: true
+  warning: false
+  message: false
+  cache: true
+bibliography: references.bib
+---
+
+```{r setup}
+#| include: false
+library(tidyverse)
+library(gt)
+library(scales)
+library(patchwork)   # plot composition
+library(glue)        # string interpolation
+library(latex2exp)   # TeX() for math in ggplot subtitles/labels
+
+# All helper, simulator, and exact-OC functions are defined in R/analysis.R.
+# They are sourced here so the manuscript code chunks below stay focused on
+# parameter setup, sweeps, and presentation.
+source("R/analysis.R")
+
+set.seed(20260414)
+# N_SIM = 100,000 is the outline target. Use 5,000–50,000 for development
+# (CP and Bayesian sweeps + generalizability scale roughly linearly in N_SIM).
+N_SIM <- 10000L
+```
+
+# Introduction
+
+Single-arm Phase II oncology trials with a binary objective response
+rate (ORR) endpoint are a long-standing design framework for assessing
+biological activity of investigational agents [@simon1989]. In this
+setting, the trial sponsor must commit to a sample
+size before observing data on the new agent, and yet the assumed effect
+size, and therefore the planned power, is rarely well-calibrated. Sample
+size re-estimation (SSR) addresses this by allowing the planned $N$ to be
+adjusted at an interim analysis based on observed information.
+
+Among adaptive SSR strategies, the **conditional-power promising zone**
+framework introduced by @mehta2011 is the most widely used in industry
+practice. Its appeal is partly statistical and partly regulatory: in the
+two-arm trial with a normally distributed test statistic, the
+inverse-normal combination test of @lehmacher1999 and @muller2001 provides
+an *analytic* guarantee that the Type I error is preserved when sample
+size is re-estimated based on a continuous interim test statistic
+[@mehta2011]. The 2019 FDA adaptive design guidance [@fda2019]
+explicitly recognises this design family and requires demonstration of
+Type I error control, analytically where possible, otherwise via
+simulation.
+
+A practical question, however, is whether the analytic guarantee carries
+over to single-arm trials with binary endpoints. The interim test statistic
+is no longer a continuous $z$ statistic but a binomial response count,
+which lives on a coarse discrete grid. The combination-test machinery that
+underpins the two-arm proof has no obvious analogue in this setting. To
+date, this gap appears to have been bridged in practice by importing the
+promising-zone *form* of the design and verifying the SSR through
+parameter tuning, on the assumption that what works for normal endpoints
+also works for binary ones.
+
+In this paper we show, by exact enumeration, that this assumption
+fails for the natural CP-promising-zone implementation studied here.
+We use a one-sided one-proportion $z$-test (normal approximation) for
+the final analysis and the standard Mehta–Pocock SSR target rule
+(extend $N$ until CP rises back to $\text{CP}_U$); these choices
+matter for the magnitudes of the inflation we report and we discuss
+their role in Section 5. For single-arm binary trials calibrated to a
+representative oncology setting ($p_0 = 0.23$, $p_1 = 0.35$,
+one-sided $\alpha = 0.05$, $N_\text{init} = 84$, $n_\text{int} = 65$,
+$N_\text{max} = 200$), exact Type I error sits **uniformly above**
+$\alpha = 0.05$ across the entire promising-lower-bound grid we
+examine, varying only mildly with $\text{CP}_L$ (every value below
+is computed exactly; the variation is the genuine effect of moving
+$\text{CP}_L$, not sampling error). No value of $\text{CP}_L$ on the
+grid achieves nominal Type I error control in this setting. We provide a mechanistic
+explanation: at finite $N$, the one-sided $z$-test critical count is
+the smallest *integer* with $z \geq z_\alpha$, so the actual Type I
+error of the underlying fixed-$N$ test differs from the nominal
+$\alpha$ by a *signed* amount whose sign and magnitude depend on
+$(p_0, N)$, it can be either upward (e.g., the base setting) or
+downward (e.g., the $p_0 = 0.10$, $N_\text{init} = 55$ setting in
+@fig-generalizability). SSR moves trials between such finite-$N$ tests, with their
+own opposite-sign discreteness biases, in a way that depends on
+$\text{CP}_L$ and the realised interim count. The resulting T1E
+behaviour is design-specific and cannot be controlled by a
+fixed-$\text{CP}_L$ rule that generalises across designs.
+
+We contrast this behaviour with Bayesian predictive-probability (PP) SSR
+[@dmitrienko2006; @lee2008; @saville2014; @liu2023], which operates on
+a near-continuous posterior probability and exhibits monotone exact
+Type I error as a function of the final-analysis posterior threshold
+$\gamma_\text{final}$ (the curve is still stepwise on the integer
+response-count grid, but the surface is far less irregular than the
+CP_L surface and admits direct calibration). The Bayesian PP design can be
+calibrated to any target Type I error directly from the exact operating
+characteristics, with separate interim and final thresholds
+($\gamma_\text{int}$, $\gamma_\text{final}$) governing distinct
+decision points.
+
+Our contribution is threefold: (1) we document, by exact computation
+and simulation, that CP promising-zone SSR cannot be calibrated to
+nominal $\alpha$ by a fixed-$\text{CP}_L$ rule that generalises across
+single-arm binary designs, in the base setting no $\text{CP}_L$ on
+the grid achieves $\text{T1E} \leq \alpha$, and across a
+generalizability grid the discreteness bias changes sign so that
+$\text{CP}_L$ values that control T1E in one configuration may not
+control it in another; (2) we explain the mechanism analytically in
+terms of the discrete $z$-test critical count's design-specific
+rounding bias combined with per-integer boundary crossings; and
+(3) we show that Bayesian PP SSR, for which exact Type I error is
+monotone in the final-analysis threshold $\gamma_\text{final}$ and
+admits direct calibration on a far less irregular surface than the
+CP_L grid, is more straightforward to calibrate in the settings
+studied, and is a practically attractive alternative when calibrated
+Type I error control is required. The remainder of the
+paper is organised as follows. Section 2 reviews the relevant background.
+Section 3 specifies the methods. Section 4 presents results.
+Sections 5 and 6 discuss limitations and conclude.
+
+
+# Background
+
+
+## Single-Arm Phase II Design
+
+Single-arm Phase II oncology trials test the response rate $p$ of a new
+agent against a fixed null $p_0$, where $p_0$ is typically obtained from
+historical-control data [@simon1989]. The classical frequentist design is
+Simon's two-stage [@simon1989], which fixes both $N$ and a single interim
+look but does not include sample-size re-estimation.
+
+Bayesian alternatives operate on the posterior $P(p > p_0 \mid x, n)$
+under a Beta-Binomial model. @lee2008 introduced the predictive
+probability design, in which the trial monitors the posterior probability
+that the trial will *eventually* declare success at the planned final
+analysis. The predictive probability under a Beta($a, b$) prior and
+binomial likelihood is available in closed form as a Beta-Binomial sum
+[@lee2008; @saville2014].
+
+The choice between conditional power (CP) and predictive probability (PP)
+for interim monitoring has been debated since at least @spiegelhalter1986.
+CP projects post-interim data under a fixed alternative $p_1$ and asks how
+likely the trial is to reach significance. PP integrates over the
+posterior on $p$ and asks how likely the trial is to reach significance
+*given the data observed so far*. In single-arm binary trials, where the
+posterior on $p$ is well-defined and computationally cheap, PP is a
+natural quantity to monitor [@saville2014; @lan2009].
+
+
+## Sample Size Re-estimation
+
+@mehta2011 introduced the **conditional-power promising zone** framework
+for SSR. At an interim analysis, CP is computed under the alternative
+$p_1$. Three thresholds, futility ($\text{CP}_\text{fut}$), promising
+lower ($\text{CP}_L$), and promising upper ($\text{CP}_U$), partition
+the CP scale into futility, unfavorable, promising, and favorable zones.
+In the promising zone the planned $N$ is increased to a value chosen so
+that CP at the new $N$ rises to $\text{CP}_U$ (capped at a budget
+$N_\text{max}$). The original Mehta–Pocock proof of Type I error control
+relies on the inverse-normal combination test of @lehmacher1999 and
+@muller2001, which combines pre- and post-interim test statistics with
+fixed weights that are *invariant* to the SSR decision. This invariance
+is what preserves the joint distribution of the combined statistic under
+$H_0$ and yields analytic Type I error control.
+
+Bayesian predictive monitoring of clinical trials was developed by
+@dmitrienko2006 and later extended and applied in single-arm Phase II
+and interim-monitoring contexts by @lee2008 and @saville2014;
+@liu2023 subsequently studied predictive-power-based SSR specifically
+for Phase 2 dose-finding. We adopt this lineage's PP design here. The PP design uses two independent thresholds: an *interim
+efficacy* bar $\gamma_\text{int}$ (stop early for success if
+$P(p > p_0 \mid x_\text{int}, n_\text{int}) \geq \gamma_\text{int}$)
+and a *final analysis* bar $\gamma_\text{final}$ (declare success at
+the end of the trial if $P(p > p_0 \mid x_\text{total}, n_\text{final})
+\geq \gamma_\text{final}$). The predictive probability used as the
+interim SSR trigger is computed *under* $\gamma_\text{final}$, not
+$\gamma_\text{int}$. Because Type I error in this design is a continuous
+function of $\gamma_\text{final}$, calibration is straightforward
+either by simulation or, as we use throughout Section 4, by exact
+enumeration.
+
+The key gap motivating the present paper is that the inverse-normal
+combination test that anchors the Mehta–Pocock proof has no obvious
+analogue when the interim test statistic is a binomial response count
+on a coarse discrete grid. Practitioners frequently transport the
+promising-zone *form* of the CP design to the single-arm binary setting
+by analogy, on the assumption that simulation-tuned zone boundaries can
+recover Type I error control. We test that assumption directly.
+
+
+# Methods
+
+
+## Design Parameters
+
+We consider a single-arm Phase II oncology trial with a binary objective
+response rate (ORR) endpoint, comparing the response rate $p$ against a
+historical null $p_0$,
+
+$$H_0: p \leq p_0 \quad \text{vs.} \quad H_1: p = p_1 .$$
+
+An interim analysis is conducted at $n_\text{int}$ patients. Depending
+on the observed data, the trial either stops early (efficacy or futility)
+or continues, with the option to extend enrollment up to a budget cap
+$N_\text{max}$. The base-case design parameters reflect a representative
+single-arm Phase II oncology setting and are summarised below; the same
+parameter object is used by every computation in the rest of the paper.
+
+```{r params}
+# ── Fixed design parameters (representative oncology setting) ─────────────
+p0      <- 0.23   # null response rate (historical control)
+p1      <- 0.35   # target response rate
+alpha   <- 0.05   # one-sided Type I error target
+power   <- 0.80   # target power
+n_init  <- 84L    # planned N (one-sided alpha = 0.05 hypothesis test)
+n_int   <- 65L    # interim analysis (absolute N)
+n_max   <- 200L   # hard budget cap
+
+# ── Bayesian prior ────────────────────────────────────────────────────────
+ap <- 0.5; bp <- 0.5   # Jeffreys Beta(0.5, 0.5)
+
+# ── CP zone parameters, swept in Section 3 ───────────────────────────────
+cp_upper    <- 0.80   # fixed throughout; favorable zone above this
+cp_futility <- 0.10   # fixed; stop for futility below this
+
+# ── Bayesian thresholds, swept in Section 4 ─────────────────────────────
+gamma_int   <- 0.99   # interim efficacy stop bar, kept high so the interim
+                      # branch contributes only a small share of T1E. At
+                      # n_int = 65, P(post >= 0.95 | p = p0) is already ~5.5%,
+                      # which by itself would consume more than alpha; 0.95
+                      # is too lenient once the interim stop is active, so we
+                      # set it to 0.99 (consistent with the outline).
+
+# ── Scenario grid: null + insurance region + alternative ─────────────────
+delta     <- p1 - p0
+scenarios <- round(c(
+  p0,
+  p0 + 0.25 * delta,
+  p0 + 0.50 * delta,
+  p0 + 0.75 * delta,
+  p1,
+  p1 + 0.25 * delta
+), 4)
+
+scen_labels <- c(
+  "p₀",
+  "p₀ + 0.25Δ",
+  "p₀ + 0.50Δ",
+  "p₀ + 0.75Δ",
+  "p₁",
+  "p₁ + 0.25Δ"
+)
+
+# Lookup table for joining labels, avoids fragile rep() calls throughout
+scen_label_tbl <- tibble(p_true = scenarios, Label = scen_labels)
+
+# ── CP promising lower sweep ──────────────────────────────────────────────
+cp_lower_grid <- seq(0.30, 0.80, by = 0.05)
+
+# ── Bayesian gamma_final sweep, narrowed to the calibration-relevant range ──
+gamma_fin_grid <- seq(0.95, 0.99, by = 0.005)
+```
+
+
+## Helper Functions
+
+All computations rely on the following helpers. `x_crit_z_fn` returns the
+minimum integer response count at which the one-sided one-proportion
+$z$-test rejects $H_0$ at level $\alpha$, this is the same critical
+count used for the final analysis in the CP design. `cp_fn` projects
+post-interim data under $p_1$ and computes conditional power against
+that critical count. `ssr_cp_fn` implements the Mehta–Pocock SSR rule:
+in the promising zone, search upward from $N_\text{init}$ for the
+smallest $n$ such that CP at $n$ rises back to $\text{CP}_U$, capping
+at $N_\text{max}$. `pred_prob_fn` and `post_prob` compute the
+Beta-Binomial predictive and posterior probabilities used by the
+Bayesian PP design under prior Beta($a_p, b_p$) = Beta($0.5, 0.5$).
+
+```{r helpers}
+#| eval: false
+# These functions are loaded from R/analysis.R via the setup chunk. They
+# are reproduced here for inline transparency in the HTML version of the
+# manuscript. Edit R/analysis.R if you want to change behavior.
+
+# ── Critical response count: minimum x such that posterior >= thresh ──────
+# (Bayesian: used by pred_prob_fn for the Bayesian final analysis)
+x_crit_fn <- function(n, p0, ap, bp, thresh) {
+  for (x in 0L:n) {
+    if (1 - pbeta(p0, ap + x, bp + n - x) >= thresh) return(x)
+  }
+  return(n + 1L)
+}
+
+# ── Frequentist z-test critical count ─────────────────────────────────────
+# Min integer x such that the one-sided one-proportion z-test rejects H0:p<=p0
+# at level `alpha`, i.e., (x/n - p0)/sqrt(p0(1-p0)/n) > qnorm(1 - alpha).
+# This MUST match the final-analysis decision rule used in sim_trial_cp().
+x_crit_z_fn <- function(n, p0, alpha) {
+  thresh <- n * p0 + qnorm(1 - alpha) * sqrt(n * p0 * (1 - p0))
+  as.integer(floor(thresh) + 1L)
+}
+
+# ── Bayesian posterior probability P(p > p0 | x, n) ──────────────────────
+post_prob <- function(x, n, p0, ap, bp) {
+  1 - pbeta(p0, ap + x, bp + n - x)
+}
+
+# ── Beta-Binomial predictive probability of eventual success ──────────────
+# Computed under gamma_fin (the FINAL analysis bar)
+pred_prob_fn <- function(x_int, n_int, n_final, p0, ap, bp, gamma_fin) {
+  a_post <- ap + x_int
+  b_post <- bp + n_int - x_int
+  n_rem  <- n_final - n_int
+  xc     <- x_crit_fn(n_final, p0, ap, bp, gamma_fin)
+  if (xc > n_final) return(0)
+  x_need <- max(0L, xc - x_int)
+  if (x_need > n_rem) return(0)
+  sum(vapply(x_need:n_rem, function(xr) {
+    exp(
+      lchoose(n_rem, xr) +
+      lbeta(a_post + xr, b_post + n_rem - xr) -
+      lbeta(a_post, b_post)
+    )
+  }, numeric(1)))
+}
+
+# ── Conditional Power (frequentist) ──────────────────────────────────────
+# Projects post-interim data under the alternative p1, using the same
+# z-test critical count that the final analysis uses (no Bayesian boundary).
+cp_fn <- function(x_int, n_int, n_final, p0, p1, alpha) {
+  xc     <- x_crit_z_fn(n_final, p0, alpha)
+  x_need <- max(0L, xc - x_int)
+  n_rem  <- n_final - n_int
+  if (x_need > n_rem) return(0)
+  1 - pbinom(x_need - 1L, n_rem, p1)
+}
+
+# ── CP-based SSR (Mehta–Pocock promising zone rule) ──────────────────────
+# Given that CP at n_init falls in the promising zone [cp_lower, cp_upper),
+# search upward for the smallest n_final >= n_init such that CP(n_final)
+# climbs back to cp_upper, capped at n_max.
+ssr_cp_fn <- function(x_int, n_int, p0, p1, alpha,
+                      cp_upper, n_init, n_max) {
+  for (n_cand in seq(n_init, n_max)) {
+    cp <- cp_fn(x_int, n_int, n_cand, p0, p1, alpha)
+    if (cp >= cp_upper) return(n_cand)
+  }
+  return(n_max)
+}
+
+# ── Bayesian PP-based SSR: find min n_final such that PP >= pp_upper ──────
+# pp_upper = 0.50 (favorable zone threshold)
+ssr_bayes_fn <- function(x_int, n_int, p0, ap, bp, gamma_fin,
+                         pp_upper, n_init, n_max) {
+  for (n_cand in seq(n_init, n_max)) {
+    pp <- pred_prob_fn(x_int, n_int, n_cand, p0, ap, bp, gamma_fin)
+    if (pp >= pp_upper) return(n_cand)
+  }
+  return(n_max)
+}
+```
+
+
+## CP Promising Zone SSR
+
+At the interim ($n = n_\text{int}$) we compute conditional power under
+the alternative $p_1$,
+
+$$\text{CP}(x_\text{int}, n_\text{int}, N) =
+P\!\left(X_\text{rem} \geq x_\text{crit}(N) - x_\text{int}
+\;\big|\; X_\text{rem} \sim \text{Bin}(N - n_\text{int}, p_1)\right),$$
+
+where $x_\text{crit}(N)$ is the $z$-test critical count at sample size
+$N$ and the same one-sided $\alpha$ that the final analysis uses. The
+trial then proceeds according to
+
+$$
+\text{Action} = \begin{cases}
+\text{Futility stop} & \text{if } \text{CP} < \text{CP}_\text{fut} \\
+\text{Unfavorable: continue to } N_\text{init} & \text{if } \text{CP}_\text{fut} \leq \text{CP} < \text{CP}_L \\
+\text{Promising: SSR to } N' \leq N_\text{max} & \text{if } \text{CP}_L \leq \text{CP} < \text{CP}_U \\
+\text{Favorable: continue to } N_\text{init} & \text{if } \text{CP} \geq \text{CP}_U
+\end{cases}
+$$
+
+with $\text{CP}_U$ fixed at $0.80$ (the target power) and
+$\text{CP}_\text{fut} = 0.10$ throughout. The promising-zone SSR rule
+extends $N$ until CP rises back to $\text{CP}_U$, capped at
+$N_\text{max}$. The final analysis is a one-sided one-proportion
+$z$-test at $\alpha = 0.05$, using the same critical count that
+appears in $\text{CP}_\text{fn}$ ensures interim and final decisions
+operate on the same scale. We sweep the promising lower bound
+$\text{CP}_L$ over the grid $\{0.30, 0.35, \ldots, 0.80\}$.
+
+```{r cp-trial-sim}
+#| eval: false
+# Loaded from R/analysis.R; kept here as inline documentation.
+sim_trial_cp <- function(p_true, cp_lower, cp_upper = 0.80,
+                         cp_futility = 0.10, n_init = 84L,
+                         n_int = 65L, n_max = 200L,
+                         p0 = 0.23, p1 = 0.35, alpha = 0.05,
+                         ap = 0.5, bp = 0.5) {
+  x_int    <- rbinom(1L, n_int, p_true)
+  cp_obs   <- cp_fn(x_int, n_int, n_init, p0, p1, alpha)
+
+  # Futility
+  if (cp_obs < cp_futility)
+    return(c(success = 0L, n = n_int, zone = 0L, n_cap = 0L))
+
+  # Favorable, no extension
+  if (cp_obs >= cp_upper) {
+    n_final <- n_init
+    zone    <- 3L
+
+  # Promising, Mehta–Pocock SSR: extend N until CP rises back to cp_upper
+  } else if (cp_obs >= cp_lower) {
+    n_final <- ssr_cp_fn(x_int, n_int, p0, p1, alpha,
+                         cp_upper, n_init, n_max)
+    zone    <- 2L
+
+  # Unfavorable, continue, no increase
+  } else {
+    n_final <- n_init
+    zone    <- 1L
+  }
+
+  x_rem    <- rbinom(1L, n_final - n_int, p_true)
+  x_total  <- x_int + x_rem
+
+  # Final analysis: one-sided one-proportion z-test (normal approximation),
+  # which is the same critical count cp_fn() uses when computing CP. The
+  # exact binomial test is uniformly conservative at fixed N and would
+  # mechanically suppress T1E below alpha, masking the SSR-induced
+  # inflation; the z-test sits close to nominal alpha and lets the
+  # SSR zone-boundary effects show through.
+  phat <- x_total / n_final
+  z    <- (phat - p0) / sqrt(p0 * (1 - p0) / n_final)
+  pval <- 1 - pnorm(z)
+
+  c(success = as.integer(pval < alpha),
+    n       = n_final,
+    zone    = zone,
+    n_cap   = as.integer(n_final == n_max))
+}
+
+run_cp_scenario <- function(p_true, cp_lower, n_sim = N_SIM, ...) {
+  # Wrap the call so `...` is captured from THIS frame (run_cp_scenario's),
+  # not from replicate()'s internal `function(...) expr` substitution, which
+  # would otherwise inject the sapply iteration value (0L) as the third
+  # positional arg, silently overriding cp_upper.
+  one_trial <- function() sim_trial_cp(p_true, cp_lower, ...)
+  mat <- t(replicate(n_sim, one_trial()))
+  tibble(
+    p_true   = p_true,
+    cp_lower = cp_lower,
+    power    = mean(mat[, "success"]),
+    exp_n    = mean(mat[, "n"]),
+    pr_fut   = mean(mat[, "zone"] == 0),
+    pr_unf   = mean(mat[, "zone"] == 1),
+    pr_prom  = mean(mat[, "zone"] == 2),
+    pr_fav   = mean(mat[, "zone"] == 3),
+    pr_cap   = mean(mat[, "n_cap"]),
+    n_p10    = quantile(mat[, "n"], 0.10),
+    n_p50    = quantile(mat[, "n"], 0.50),
+    n_p90    = quantile(mat[, "n"], 0.90),
+  )
+}
+```
+
+
+## Bayesian PP SSR
+
+The Bayesian design uses *separate* thresholds for the interim efficacy
+stop ($\gamma_\text{int}$) and the final analysis success criterion
+($\gamma_\text{final}$). The SSR trigger is the predictive probability
+of eventual success at the planned $N$, computed *under*
+$\gamma_\text{final}$:
+
+$$
+\text{PP}(x_\text{int}, n_\text{int}, N) =
+\sum_{x_r=0}^{N - n_\text{int}}
+\text{BetaBin}(x_r;\; n_r,\; a_\text{post},\; b_\text{post})
+\cdot \mathbf{1}\!\left[P(p > p_0 \mid x_\text{int}+x_r,\, N) \geq \gamma_\text{final}\right] .
+$$
+
+At the interim, the trial stops early for efficacy when the posterior
+$P(p > p_0 \mid x_\text{int}, n_\text{int}) \geq \gamma_\text{int}$;
+otherwise the PP-based zone is checked. We use the standard PP zones
+$\text{PP}_\text{fut} = 0.05$ for futility and $\text{PP}_U = 0.50$
+for the favorable boundary, with the SSR rule extending $N$ until PP
+rises to $\text{PP}_U$ (capped at $N_\text{max}$). $\gamma_\text{int}$
+is fixed at $0.99$ throughout (a high bar by design, the alternative
+$\gamma_\text{int} = 0.95$ would itself produce
+$\Pr(\text{interim efficacy stop} \mid p = p_0) \approx 5.5\%$ at
+$n_\text{int} = 65$, exceeding $\alpha$ before the SSR branch even runs).
+We sweep $\gamma_\text{final}$ over $\{0.950, 0.955, \ldots, 0.990\}$.
+The final analysis declares success when the posterior at $n_\text{final}$
+exceeds $\gamma_\text{final}$.
+
+```{r bayes-trial-sim}
+#| eval: false
+# Loaded from R/analysis.R; kept here as inline documentation.
+sim_trial_bayes <- function(p_true, gamma_fin, gamma_int = 0.99,
+                             pp_fut = 0.05, pp_upper = 0.50,
+                             n_init = 84L, n_int = 65L, n_max = 200L,
+                             p0 = 0.23, ap = 0.5, bp = 0.5) {
+  x_int <- rbinom(1L, n_int, p_true)
+
+  # ── Interim efficacy stop: posterior P(p > p0 | x_int) >= gamma_int ──
+  # gamma_int is independent of gamma_final (the final-analysis bar).
+  post_int <- post_prob(x_int, n_int, p0, ap, bp)
+  if (post_int >= gamma_int) {
+    return(c(success = 1L, n = n_int, zone = 3L,
+             pr_eff = 1L, stop_fut = 0L, n_cap = 0L))
+  }
+
+  # Predictive probability of eventual success, computed under gamma_final
+  pp <- pred_prob_fn(x_int, n_int, n_init, p0, ap, bp, gamma_fin)
+
+  # Futility stop
+  if (pp <= pp_fut)
+    return(c(success = 0L, n = n_int, zone = 0L,
+             pr_eff = 0L, stop_fut = 1L, n_cap = 0L))
+
+  # Zone: favorable vs. promising (SSR)
+  if (pp >= pp_upper) {
+    n_final <- n_init; zone <- 2L
+  } else {
+    n_final <- ssr_bayes_fn(x_int, n_int, p0, ap, bp, gamma_fin,
+                            pp_upper, n_init, n_max)
+    zone    <- 1L
+  }
+
+  x_rem    <- rbinom(1L, n_final - n_int, p_true)
+  x_total  <- x_int + x_rem
+  post_fin <- post_prob(x_total, n_final, p0, ap, bp)
+
+  c(success  = as.integer(post_fin >= gamma_fin),
+    n        = n_final,
+    zone     = zone,
+    pr_eff   = 0L,
+    stop_fut = 0L,
+    n_cap    = as.integer(n_final == n_max))
+}
+
+run_bayes_scenario <- function(p_true, gamma_fin, n_sim = N_SIM, ...) {
+  # Same `...`-injection guard as run_cp_scenario: replicate()'s internal
+  # `function(...) expr` would otherwise pass the sapply iteration value
+  # as the third positional arg, silently setting gamma_int = 0.
+  one_trial <- function() sim_trial_bayes(p_true, gamma_fin, ...)
+  mat <- t(replicate(n_sim, one_trial()))
+  tibble(
+    p_true    = p_true,
+    gamma_fin = gamma_fin,
+    power     = mean(mat[, "success"]),
+    exp_n     = mean(mat[, "n"]),
+    pr_eff    = mean(mat[, "pr_eff"]),
+    pr_fut    = mean(mat[, "stop_fut"]),
+    pr_prom   = mean(mat[, "zone"] == 1),
+    pr_fav    = mean(mat[, "zone"] == 2),
+    pr_cap    = mean(mat[, "n_cap"]),
+    n_p10     = quantile(mat[, "n"], 0.10),
+    n_p50     = quantile(mat[, "n"], 0.50),
+    n_p90     = quantile(mat[, "n"], 0.90),
+  )
+}
+```
+
+
+
+## Exact Operating Characteristics
+
+Because each design has a single interim look and a binomial endpoint,
+the joint distribution of $(x_\text{int}, x_\text{rem})$ under any
+true response rate $p$ is finite and discrete. We can therefore compute
+all operating characteristics, Type I error, power, expected sample
+size, zone probabilities, sample-size quantiles, by **exact enumeration**
+rather than Monte Carlo. The functions below sum over every reachable
+$(x_\text{int}, x_\text{rem})$ pair and return deterministic OC values
+with no Monte Carlo noise. We use them for every headline result in
+Section 4; the simulator-based `run_*_scenario` functions remain in
+the document for users extending to settings where exact enumeration
+is awkward (e.g., multiple interim looks).
+
+```{r oc-exact}
+#| eval: false
+# Loaded from R/analysis.R; kept here as inline documentation.
+
+# ── Fixed-N z-test Type I error (no interim, no SSR) ─────────────────────
+fixed_n_t1e <- function(n, p0 = 0.23, alpha = 0.05) {
+  xc <- x_crit_z_fn(n, p0, alpha)
+  if (xc > n) return(0)
+  1 - pbinom(xc - 1L, n, p0)
+}
+
+# ── Helper: exact quantile of a discrete distribution (n_final, prob) ────
+discrete_quantile <- function(values, probs, q) {
+  ord <- order(values)
+  v   <- values[ord]
+  cp  <- cumsum(probs[ord])
+  v[which(cp >= q)[1]]
+}
+
+# ── Exact OC for the CP promising-zone design ────────────────────────────
+# Sums over x_int = 0..n_int. For each x_int we deterministically resolve
+# zone -> n_final, then compute P(reject final | x_int, n_final, p_true)
+# from the binomial CDF of x_rem. No Monte Carlo.
+cp_oc_exact <- function(p_true, cp_lower,
+                        cp_upper = 0.80, cp_futility = 0.10,
+                        n_init = 84L, n_int = 65L, n_max = 200L,
+                        p0 = 0.23, p1 = 0.35, alpha = 0.05,
+                        ap = 0.5, bp = 0.5) {
+  x_grid    <- 0L:n_int
+  pmf_x_int <- dbinom(x_grid, n_int, p_true)
+  cp_obs    <- vapply(x_grid, function(x) cp_fn(x, n_int, n_init, p0, p1, alpha),
+                      numeric(1))
+
+  zone <- integer(length(x_grid))
+  zone[cp_obs <  cp_futility]                       <- 0L  # futility
+  zone[cp_obs >= cp_upper]                          <- 3L  # favorable
+  zone[cp_obs >= cp_lower & cp_obs < cp_upper]      <- 2L  # promising
+  zone[cp_obs >= cp_futility & cp_obs < cp_lower]   <- 1L  # unfavorable
+
+  n_final <- ifelse(zone == 0L, n_int,
+              ifelse(zone == 2L,
+                vapply(x_grid, function(x) ssr_cp_fn(x, n_int, p0, p1, alpha,
+                                                      cp_upper, n_init, n_max),
+                       integer(1)),
+                n_init))
+
+  p_succ <- vapply(seq_along(x_grid), function(i) {
+    if (zone[i] == 0L) return(0)
+    xc     <- x_crit_z_fn(n_final[i], p0, alpha)
+    x_need <- max(0L, xc - x_grid[i])
+    n_rem  <- n_final[i] - n_int
+    if (x_need > n_rem) return(0)
+    1 - pbinom(x_need - 1L, n_rem, p_true)
+  }, numeric(1))
+
+  tibble(
+    p_true   = p_true,
+    cp_lower = cp_lower,
+    power    = sum(pmf_x_int * p_succ),
+    exp_n    = sum(pmf_x_int * n_final),
+    pr_fut   = sum(pmf_x_int * (zone == 0L)),
+    pr_unf   = sum(pmf_x_int * (zone == 1L)),
+    pr_prom  = sum(pmf_x_int * (zone == 2L)),
+    pr_fav   = sum(pmf_x_int * (zone == 3L)),
+    pr_cap   = sum(pmf_x_int * (n_final == n_max)),
+    n_p10    = discrete_quantile(n_final, pmf_x_int, 0.10),
+    n_p50    = discrete_quantile(n_final, pmf_x_int, 0.50),
+    n_p90    = discrete_quantile(n_final, pmf_x_int, 0.90)
+  )
+}
+
+# ── Exact OC for the Bayesian PP design ──────────────────────────────────
+bayes_oc_exact <- function(p_true, gamma_fin, gamma_int = 0.99,
+                            pp_fut = 0.05, pp_upper = 0.50,
+                            n_init = 84L, n_int = 65L, n_max = 200L,
+                            p0 = 0.23, ap = 0.5, bp = 0.5) {
+  x_grid    <- 0L:n_int
+  pmf_x_int <- dbinom(x_grid, n_int, p_true)
+
+  post_int <- vapply(x_grid, function(x) post_prob(x, n_int, p0, ap, bp),
+                     numeric(1))
+  pp <- vapply(x_grid, function(x)
+                pred_prob_fn(x, n_int, n_init, p0, ap, bp, gamma_fin),
+                numeric(1))
+
+  # Zones: 3=interim efficacy, 0=futility, 2=favorable (no SSR), 1=promising (SSR)
+  zone <- ifelse(post_int >= gamma_int, 3L,
+           ifelse(pp <= pp_fut,         0L,
+            ifelse(pp >= pp_upper,      2L, 1L)))
+
+  n_final <- ifelse(zone %in% c(0L, 3L), n_int,
+              ifelse(zone == 2L, n_init,
+                vapply(x_grid, function(x) ssr_bayes_fn(x, n_int, p0, ap, bp,
+                                                         gamma_fin, pp_upper,
+                                                         n_init, n_max),
+                       integer(1))))
+
+  p_succ <- vapply(seq_along(x_grid), function(i) {
+    if (zone[i] == 0L) return(0)         # futility, no success
+    if (zone[i] == 3L) return(1)         # interim efficacy, success at n_int
+    xc     <- x_crit_fn(n_final[i], p0, ap, bp, gamma_fin)
+    x_need <- max(0L, xc - x_grid[i])
+    n_rem  <- n_final[i] - n_int
+    if (x_need > n_rem) return(0)
+    1 - pbinom(x_need - 1L, n_rem, p_true)
+  }, numeric(1))
+
+  tibble(
+    p_true    = p_true,
+    gamma_fin = gamma_fin,
+    power     = sum(pmf_x_int * p_succ),
+    exp_n     = sum(pmf_x_int * n_final),
+    pr_eff    = sum(pmf_x_int * (zone == 3L)),
+    pr_fut    = sum(pmf_x_int * (zone == 0L)),
+    pr_prom   = sum(pmf_x_int * (zone == 1L)),
+    pr_fav    = sum(pmf_x_int * (zone == 2L)),
+    pr_cap    = sum(pmf_x_int * (n_final == n_max)),
+    n_p10     = discrete_quantile(n_final, pmf_x_int, 0.10),
+    n_p50     = discrete_quantile(n_final, pmf_x_int, 0.50),
+    n_p90     = discrete_quantile(n_final, pmf_x_int, 0.90)
+  )
+}
+
+# ── CP-driven SSR with Bayesian posterior final analysis ────────────────
+# Same interim/zone/SSR logic as cp_oc_exact, but the final analysis
+# declares success when post_prob(x_total, n_final) >= gamma_fin
+# (instead of the z-test). This isolates which component of the original
+# Bayesian-vs-CP advantage comes from the final analysis rule.
+cp_oc_post_final <- function(p_true, cp_lower, gamma_fin = 0.955,
+                              cp_upper = 0.80, cp_futility = 0.10,
+                              n_init = 84L, n_int = 65L, n_max = 200L,
+                              p0 = 0.23, p1 = 0.35, alpha = 0.05,
+                              ap = 0.5, bp = 0.5) {
+  x_grid    <- 0L:n_int
+  pmf_x_int <- dbinom(x_grid, n_int, p_true)
+  cp_obs    <- vapply(x_grid, function(x) cp_fn(x, n_int, n_init, p0, p1, alpha),
+                      numeric(1))
+
+  zone <- integer(length(x_grid))
+  zone[cp_obs <  cp_futility]                     <- 0L
+  zone[cp_obs >= cp_upper]                        <- 3L
+  zone[cp_obs >= cp_lower & cp_obs < cp_upper]    <- 2L
+  zone[cp_obs >= cp_futility & cp_obs < cp_lower] <- 1L
+
+  n_final <- ifelse(zone == 0L, n_int,
+              ifelse(zone == 2L,
+                vapply(x_grid, function(x) ssr_cp_fn(x, n_int, p0, p1, alpha,
+                                                      cp_upper, n_init, n_max),
+                       integer(1)),
+                n_init))
+
+  # Final rule: posterior P(p > p0 | x_total, n_final) >= gamma_fin.
+  # Equivalently, x_total >= x_crit_fn(n_final, p0, ap, bp, gamma_fin).
+  p_succ <- vapply(seq_along(x_grid), function(i) {
+    if (zone[i] == 0L) return(0)
+    xc     <- x_crit_fn(n_final[i], p0, ap, bp, gamma_fin)
+    if (xc > n_final[i]) return(0)
+    x_need <- max(0L, xc - x_grid[i])
+    n_rem  <- n_final[i] - n_int
+    if (x_need > n_rem) return(0)
+    1 - pbinom(x_need - 1L, n_rem, p_true)
+  }, numeric(1))
+
+  tibble(
+    p_true    = p_true,
+    cp_lower  = cp_lower,
+    gamma_fin = gamma_fin,
+    power     = sum(pmf_x_int * p_succ),
+    exp_n     = sum(pmf_x_int * n_final),
+    pr_fut    = sum(pmf_x_int * (zone == 0L)),
+    pr_unf    = sum(pmf_x_int * (zone == 1L)),
+    pr_prom   = sum(pmf_x_int * (zone == 2L)),
+    pr_fav    = sum(pmf_x_int * (zone == 3L)),
+    pr_cap    = sum(pmf_x_int * (n_final == n_max))
+  )
+}
+```
+
+
+## Computation Approach
+
+Because each design has a single interim look and a binomial endpoint,
+every operating characteristic, Type I error, power, expected sample
+size, zone probabilities, sample-size quantiles, is **exactly
+computable** by enumerating the joint distribution of
+$(x_\text{int}, x_\text{rem})$ under any true response rate $p$. The
+helper functions `cp_oc_exact` and `bayes_oc_exact` (Section 3.6) do
+this; every numerical result reported below is exact and deterministic
+(no Monte Carlo). The simulator-based functions `sim_trial_*` and
+`run_*_scenario` remain in the document for users who need to extend
+to settings where exact enumeration is awkward (e.g., multiple interim
+looks); a fixed seed (`set.seed(20260414)`) makes them reproducible.
+
+Six true ORR scenarios are evaluated: $p_0$, three intermediate values
+($p_0 + 0.25\Delta$, $p_0 + 0.50\Delta$, $p_0 + 0.75\Delta$ with
+$\Delta = p_1 - p_0$), $p_1$, and an over-performing arm
+$p_1 + 0.25\Delta$. For each design we report power (or Type I error
+when $p = p_0$), expected sample size $E[N]$, zone probabilities,
+budget-cap probability, and the $p10$/$p50$/$p90$ quantiles of
+$n_\text{final}$. Generalizability is assessed by repeating the
+CP $\text{CP}_L$ sweep across five distinct $(p_0, p_1, n_\text{int},
+N_\text{init}, N_\text{max})$ settings. All code is in R 4.x with
+Quarto; the manuscript is fully reproducible from this `.qmd`.
+
+
+# Results
+
+
+## CP Promising Zone: Type I Error Above $\alpha$ Across the Grid
+
+@fig-cp-t1e is the central empirical result for the base setting. Exact
+Type I error at $p = p_0$ sits **uniformly above** the nominal
+$\alpha = 0.05$ as $\text{CP}_L$ is raised from $0.30$ to $0.80$,
+varying only mildly across the grid. The variation is small but
+deterministic: adjacent $\text{CP}_L$ values often map the same
+interim integer counts into the same zones, so the exact T1E curve
+changes only in steps when an integer crosses a zone boundary.
+**No $\text{CP}_L$ on the grid achieves $\text{T1E} \leq \alpha$ in
+this setting.** @tbl-cp-oc below reports
+power at $p = p_1$ alongside T1E at each $\text{CP}_L$, power
+decreases gently as the promising zone shrinks. Section 4.2 traces
+the inflation to the discrete arithmetic of the $z$-test critical
+count combined with SSR-driven changes in $N$; Section 4.5 then
+shows that the *direction* of the bias changes from one design
+configuration to another, so the base-setting inflation is not
+universal.
+
+```{r cp-sweep}
+#| cache: true
+#| message: false
+
+# Headline OC: exact enumeration (no Monte Carlo noise).
+cp_sweep <- expand_grid(
+  cp_lower = cp_lower_grid,
+  p_true   = scenarios
+) |>
+  pmap_dfr(function(cp_lower, p_true) {
+    cp_oc_exact(p_true = p_true, cp_lower = cp_lower)
+  })
+```
+
+```{r cp-t1e-plot}
+#| label: fig-cp-t1e
+#| fig-cap: "Exact Type I error as a function of the CP promising lower bound, zoomed on the 4–8% range. The T1E curve sits uniformly above the nominal $\\alpha$ = 0.05 across every $\\text{CP}_L$ on the grid, the key finding. (Power at $p_1$ is shown in the head-to-head comparison, §4.4.)"
+
+t1e_only <- cp_sweep |>
+  filter(p_true == p0)
+
+ggplot(t1e_only, aes(x = cp_lower, y = power)) +
+  geom_hline(yintercept = alpha, color = "red", linewidth = 0.5,
+             linetype = "dotted") +
+  geom_line(color = "#C0392B", linewidth = 1.2) +
+  geom_point(color = "#C0392B", size = 3, shape = 21,
+             fill = "white", stroke = 1.5) +
+  annotate("text", x = 0.325, y = alpha + 0.0015,
+           label = glue("alpha = {alpha}"), size = 3, color = "red") +
+  scale_x_continuous(breaks = cp_lower_grid,
+                     labels = as.character(cp_lower_grid)) +
+  scale_y_continuous(labels = percent_format(accuracy = 0.1),
+                     breaks = seq(0.04, 0.08, 0.005),
+                     limits = c(0.04, 0.08)) +
+  labs(
+    title    = "CP Promising Zone SSR: Type I Error vs. Promising Lower Bound",
+    subtitle = TeX(glue(
+      "$p_0 = {p0}$, $p_1 = {p1}$, $n_{{int}} = {n_int}$, ",
+      "$N_{{init}} = {n_init}$, $N_{{max}} = {n_max}$, ",
+      "$CP_{{upper}} = {cp_upper}$, $CP_{{fut}} = {cp_futility}$, exact enumeration"
+    )),
+    x = TeX("CP Promising Lower ($CP_L$)"),
+    y = TeX("Exact Type I Error ($p = p_0$)")
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title       = element_text(face = "bold", color = "#1F4E79", size = 11),
+    plot.subtitle    = element_text(color = "gray40", size = 9),
+    panel.grid.minor = element_blank()
+  )
+```
+
+@tbl-cp-oc reports the full operating characteristics at six representative
+$\text{CP}_L$ values. The Type I error inflation is small in absolute
+terms, typically a few tenths of a percentage point above $\alpha$,
+but it is robust: every $\text{CP}_L$ on the grid produces a
+nominally-uncalibrated design, and lower $\text{CP}_L$ values trade
+slightly higher T1E for somewhat higher power at $p_1$.
+
+```{=latex}
+\begin{landscape}
+```
+
+```{r cp-oc-table}
+#| label: tbl-cp-oc
+#| tbl-cap: "CP SSR operating characteristics at selected $\\text{CP}_L$ values. Power / T1E column reports exact power at the corresponding True ORR; at $p = p_0$ = 23% it is the exact Type I error (target ≤ 5%). Design parameters and computation method appear in the table subtitle."
+selected_pl <- c(0.30, 0.50, 0.65, 0.80)
+
+# Use round() to avoid floating-point mismatches from seq()
+cp_sweep |>
+  filter(round(cp_lower, 4) %in% round(selected_pl, 4)) |>
+  left_join(scen_label_tbl, by = "p_true") |>
+  mutate(
+    `CP_L`          = round(cp_lower, 2),
+    `True ORR`      = percent(p_true, accuracy = 1),
+    `Power / T1E`   = percent(power,   accuracy = 0.1),
+    `E[N]`          = round(exp_n, 1),
+    `Pr(Fut)`       = percent(pr_fut,  accuracy = 1),
+    `Pr(Prom)`      = percent(pr_prom, accuracy = 1),
+    `Pr(Fav)`       = percent(pr_fav,  accuracy = 1),
+    `Pr(Cap)`       = percent(pr_cap,  accuracy = 1),
+    `N p10/p50/p90` = paste0(n_p10, " / ", n_p50, " / ", n_p90)
+  ) |>
+  arrange(`CP_L`, p_true) |>
+  select(`CP_L`, `True ORR`, Label, `Power / T1E`, `E[N]`,
+         `Pr(Fut)`, `Pr(Prom)`, `Pr(Fav)`, `Pr(Cap)`, `N p10/p50/p90`) |>
+  gt(groupname_col = "CP_L") |>
+  tab_source_note(md(glue(
+    "Design: $\\text{{CP}}_\\text{{upper}} = {cp_upper}$ · ",
+    "$\\text{{CP}}_\\text{{fut}} = {cp_futility}$ · ",
+    "$n_\\text{{int}} = {n_int}$ · $N_\\text{{max}} = {n_max}$ · ",
+    "exact enumeration."
+  ))) |>
+  tab_style(
+    style    = list(cell_fill(color = "#F8D7DA"), cell_text(weight = "bold")),
+    locations = cells_body(rows = `True ORR` == "23%")
+  ) |>
+  tab_style(
+    style    = list(cell_fill(color = "#D4EDDA"), cell_text(weight = "bold")),
+    locations = cells_body(rows = `True ORR` == "35%")
+  ) |>
+  tab_footnote(
+    "Power / T1E column: at p = p\u2080 this is the exact Type I error; target \u2264 5.0%.",
+    locations = cells_column_labels(columns = `Power / T1E`)
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  tab_options(table.width = pct(100), table.font.size = "small",
+              row_group.font.weight = "bold",
+              heading.title.font.size = "small",
+              heading.subtitle.font.size = "footnotesize")
+```
+
+```{=latex}
+\end{landscape}
+```
+
+
+## Mechanism: Discrete $z$-test Bias and Boundary Crossings
+
+The Type I error pattern has two sources, both arising from the
+discrete one-sided $z$-test critical count $x_\text{crit}(N)$ used at
+the final analysis. First, at any finite $N$, $x_\text{crit}(N)$ is
+the smallest integer with $z \geq z_\alpha$, so the actual fixed-$N$
+rejection probability under $H_0$ differs from the nominal $\alpha$
+by a *signed* amount that depends on where the rounding falls, in
+some $(p_0, N)$ configurations the rounding leaves T1E above $\alpha$,
+in others below. In our base setting ($p_0 = 0.23$, $N_\text{init} = 84$)
+the bias is upward; Section 4.5 documents settings where it is
+downward. Second, SSR moves trials between finite-$N$ tests whose
+biases can have either sign, and the per-integer analysis below shows
+the *direction* of the SSR contribution at each boundary crossing.
+At $n_\text{int} = 65$, $x_\text{int}$ takes $66$ possible values;
+each maps to a specific CP at $N_\text{init}$. As $\text{CP}_L$ is
+raised from one grid point to the next, only the integers whose CP
+falls in that interval cross from the **promising** zone into the
+**unfavorable** zone. Each such crossing changes that integer's
+contribution from "extend $N$ via SSR" to "stay at $N_\text{init}$".
+
+The signed contribution to the Type I error when an integer leaves the
+promising zone is
+$\Delta\text{T1E}(x_\text{int})
+= \Pr(x_\text{int} \mid p_0)
+\cdot \bigl[\text{FP}_\text{init}(x_\text{int})
+- \text{FP}_\text{ssr}(x_\text{int})\bigr]$,
+where $\text{FP}_\text{init}$ is the conditional false-positive
+probability if the trial stays at $N_\text{init}$ and $\text{FP}_\text{ssr}$
+is the false-positive probability if SSR drives $N$ to its (per-integer)
+target. In principle, because the discrete $z$-test critical count is not
+exactly $\alpha$ at any finite $N$, the sign of $\Delta\text{T1E}$
+could go either way at each crossing. **In our base setting all
+observed crossings have $\Delta\text{T1E} < 0$**, so exact T1E
+declines monotonically (and only mildly) as $\text{CP}_L$ rises,
+but never by enough to reach $\alpha$, because the underlying
+fixed-$N$ discreteness bias dominates the SSR effect. The stepwise
+changes are small because adjacent $\text{CP}_L$ values often
+classify the same integer counts into the same zone, so only one
+or two integers cross at each grid step.
+
+```{r cp-mechanism}
+# ── For each x_int, compute CP at n_init and the SSR target N ─────────────
+# n_ssr(x_int) is the smallest n in [n_init, n_max] with CP(n) >= cp_upper,
+# i.e., the N this integer would drive to under the SSR rule if it fell in
+# the promising zone. fp_at_ssr is the resulting conditional false-positive
+# probability at that N. fp_at_init is the FP probability if no SSR were
+# done (integer falls in unfavorable). The signed difference governs the
+# T1E contribution change when that integer crosses promising -> unfavorable.
+mechanism_tbl <- tibble(x_int = 0L:n_int) |>
+  mutate(
+    cp_at_init  = map_dbl(x_int, ~ cp_fn(.x, n_int, n_init, p0, p1, alpha)),
+    prob_x_null = dbinom(x_int, n_int, p0),
+    # Critical count under z-test, same helper used by cp_fn / sim_trial_cp
+    xc_init     = x_crit_z_fn(n_init, p0, alpha),
+    x_need_init = pmax(0L, xc_init - x_int),
+    fp_at_init  = map2_dbl(x_int, x_need_init,
+                           ~ if (.y > n_init - n_int) 0
+                             else 1 - pbinom(.y - 1L, n_init - n_int, p0)),
+    # SSR target N per x_int (capped at n_max if cp_upper unreachable)
+    n_ssr       = map_int(x_int, function(x) {
+      for (nc in seq(n_init, n_max)) {
+        if (cp_fn(x, n_int, nc, p0, p1, alpha) >= cp_upper) return(nc)
+      }
+      n_max
+    }),
+    xc_ssr      = map_int(n_ssr, ~ x_crit_z_fn(.x, p0, alpha)),
+    x_need_ssr  = pmax(0L, xc_ssr - x_int),
+    fp_at_ssr   = pmap_dbl(list(x_int, x_need_ssr, n_ssr),
+                           function(xi, xn, ns) {
+                             nr <- ns - n_int
+                             if (xn > nr) 0
+                             else 1 - pbinom(xn - 1L, nr, p0)
+                           }),
+    # T1E contribution change as this integer crosses promising -> unfavorable
+    # (loses the SSR-conditional FP, gains the no-SSR FP at n_init)
+    t1e_change  = prob_x_null * (fp_at_init - fp_at_ssr)
+  )
+
+# ── For each CP_L step, identify integers that cross the boundary ─────────
+# When CP_L is raised from pl_old to pl_new (pl_new > pl_old),
+# integers with pl_old <= CP < pl_new move from promising → unfavorable
+boundary_crossings <- map_dfr(
+  seq_along(cp_lower_grid[-1]),
+  function(i) {
+    pl_old <- cp_lower_grid[i]
+    pl_new <- cp_lower_grid[i + 1]
+    mechanism_tbl |>
+      filter(cp_at_init >= pl_old, cp_at_init < pl_new) |>
+      mutate(
+        pl_from  = pl_old,
+        pl_to    = pl_new,
+        step     = glue("{pl_old} -> {pl_new}")
+      )
+  }
+)
+```
+
+```{r mechanism-plot}
+#| label: fig-mechanism
+#| fig-cap: "For each integer response count $x_\\text{int}$ that crosses from promising to unfavorable as $\\text{CP}_L$ is raised, we show its individual Type I error contribution change. Positive values = T1E increases; negative = T1E decreases. Steps with no crossing counts are omitted."
+
+# Only plot steps that have at least one crossing
+bc_plot <- boundary_crossings |>
+  filter(!is.na(step))
+
+if (nrow(bc_plot) == 0) {
+  message("No boundary crossings found, check cp_lower_grid and cp_at_init values.")
+} else {
+  bc_plot |>
+    ggplot(aes(x = factor(x_int), y = t1e_change * 1000,
+               fill = t1e_change > 0)) +
+    geom_col(width = 0.7, alpha = 0.85) +
+    geom_hline(yintercept = 0, linewidth = 0.5) +
+    facet_wrap(~ step, scales = "free_x", ncol = 3) +
+    scale_fill_manual(
+      values = c("TRUE" = "#C0392B", "FALSE" = "#2E75B6"),
+      labels = c("TRUE" = "T1E increases", "FALSE" = "T1E decreases"),
+      name   = NULL
+    ) +
+    labs(
+      title    = "Type I Error Contribution Change at Each Boundary Crossing",
+      subtitle = TeX(paste0(
+        "Each panel = one $CP_L$ step. ",
+        "Bars = $x_{int}$ values crossing from promising $\\to$ ",
+        "unfavorable zone. Y-axis: $\\Delta T1E \\times 10^3$."
+      )),
+      x = TeX("Interim response count ($x_{int}$)"),
+      y = TeX("$\\Delta T1E \\times 10^3$")
+    ) +
+    theme_minimal(base_size = 11) +
+    theme(
+      plot.title       = element_text(face = "bold", color = "#1F4E79", size = 11),
+      plot.subtitle    = element_text(color = "gray40", size = 9),
+      panel.grid.minor = element_blank(),
+      legend.position  = "bottom",
+      strip.text       = element_text(face = "bold", size = 9)
+    )
+}
+```
+
+```{r mechanism-table}
+#| label: tbl-mechanism
+#| tbl-cap: "Summary of T1E contribution changes at each $\\text{CP}_L$ step. In our base setting every observed crossing has $\\Delta$T1E < 0, so exact T1E declines monotonically as $\\text{CP}_L$ rises, but the magnitudes are small and the underlying fixed-N discreteness bias keeps T1E above $\\alpha$ at every $\\text{CP}_L$. The 'Exact T1E' column reports the deterministic value from cp_oc_exact at the new $\\text{CP}_L$. Steps with no crossings mean no $x_\\text{int}$ values fall in that CP interval, the discrete distribution has a gap there."
+
+if (nrow(boundary_crossings) > 0) {
+  boundary_crossings |>
+    group_by(step, pl_from, pl_to) |>
+    summarise(
+      x_values       = paste(sort(x_int), collapse = ", "),
+      net_t1e_change = sum(t1e_change),
+      .groups        = "drop"
+    ) |>
+    left_join(
+      cp_sweep |>
+        filter(p_true == p0) |>
+        select(cp_lower, t1e = power),
+      by = c("pl_to" = "cp_lower")
+    ) |>
+    mutate(
+      `CP_L step`        = step,
+      `Counts crossing`  = x_values,
+      `Net dT1E`         = sprintf("%+.4f", net_t1e_change),
+      `Direction`        = if_else(net_t1e_change > 0, "Up", "Down"),
+      `Exact T1E`        = percent(t1e, accuracy = 0.01)
+    ) |>
+    select(`CP_L step`, `Counts crossing`,
+           `Net dT1E`, `Direction`, `Exact T1E`) |>
+    gt() |>
+    cols_label(
+      `CP_L step`       = md("$\\text{CP}_L$ step"),
+      `Counts crossing` = "Counts crossing",
+      `Net dT1E`        = md("Net $\\Delta$T1E"),
+      `Direction`       = "Direction",
+      `Exact T1E`       = "Exact T1E"
+    ) |>
+    tab_source_note(md(glue("Design: $\\text{{CP}}_\\text{{upper}} = {cp_upper}$, $\\text{{CP}}_\\text{{fut}} = {cp_futility}$, $n_\\text{{int}} = {n_int}$, $N_\\text{{init}} = {n_init}$."))) |>
+    tab_style(
+      style    = list(cell_fill(color = "#F8D7DA"), cell_text(weight = "bold")),
+      locations = cells_body(rows = `Direction` == "Up")
+    ) |>
+    tab_style(
+      style = cell_text(weight = "bold"),
+      locations = cells_column_labels()
+    ) |>
+    tab_options(table.width = pct(100), table.font.size = "small",
+              heading.title.font.size = "small",
+              heading.subtitle.font.size = "footnotesize")
+} else {
+  cat("No boundary crossings detected. Inspect mechanism_tbl$cp_at_init distribution.")
+}
+```
+
+
+## Bayesian PP SSR: Monotone Calibration
+
+@fig-bayes-t1e shows the Bayesian counterpart of @fig-cp-t1e. Exact Type I
+error decreases **monotonically** in $\gamma_\text{final}$; power
+likewise decreases monotonically. Both curves are still stepwise
+because the final success rule reduces to an integer-grid decision
+($x_\text{total} \geq x_\text{crit}(n_\text{final}, \gamma_\text{final})$),
+so adjacent $\gamma_\text{final}$ values that share the same integer
+critical count produce identical T1E, the rendered table below
+shows visible plateaus across consecutive grid points. The
+calibration surface is nonetheless **far less irregular** than the
+$\text{CP}_L$ surface in §4.1: PP integrates over a continuous
+posterior, so as $\gamma_\text{final}$ rises the integer critical
+count also rises (or stays the same), monotonically reducing T1E.
+The practical consequence is that the design can be calibrated to
+any target Type I error by enumeration, simply by
+choosing the smallest $\gamma_\text{final}$ that meets the Type I
+error budget.
+
+```{r bayes-sweep}
+#| cache: true
+
+# Headline OC: exact enumeration (no Monte Carlo noise).
+bayes_sweep <- expand_grid(
+  gamma_fin = gamma_fin_grid,
+  p_true    = scenarios
+) |>
+  pmap_dfr(function(gamma_fin, p_true) {
+    bayes_oc_exact(p_true = p_true, gamma_fin = gamma_fin)
+  })
+```
+
+```{r bayes-t1e-plot}
+#| label: fig-bayes-t1e
+#| fig-cap: "Exact Type I error (solid) and power at $p_1$ (dashed) as a function of $\\gamma_\\text{final}$ on the evaluated grid. Smooth, monotone behaviour contrasts sharply with the CP result."
+
+t1e_power_bayes <- bayes_sweep |>
+  filter(p_true %in% c(p0, p1)) |>
+  mutate(metric = if_else(p_true == p0,
+                          "Type I Error (p = p0)", "Power (p = p1)"))
+
+ggplot(t1e_power_bayes, aes(x = gamma_fin, y = power,
+                             color = metric, linetype = metric)) +
+  geom_hline(yintercept = alpha, color = "red",   linewidth = 0.5, linetype = "dotted") +
+  geom_hline(yintercept = power, color = "gray50", linewidth = 0.5, linetype = "dotted") +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3, shape = 21, fill = "white", stroke = 1.5) +
+  annotate("text", x = 0.985, y = alpha + 0.03,
+           label = glue("alpha = {alpha}"), size = 3, color = "red") +
+  annotate("text", x = 0.985, y = power + 0.03,
+           label = "Target power = 0.80", size = 3, color = "gray40") +
+  scale_color_manual(values = c("Type I Error (p = p0)" = "#C0392B",
+                                "Power (p = p1)"        = "#2E75B6")) +
+  scale_linetype_manual(values = c("Type I Error (p = p0)" = "solid",
+                                   "Power (p = p1)"        = "dashed")) +
+  scale_x_continuous(breaks = seq(0.95, 0.99, by = 0.01),
+                     labels = as.character(seq(0.95, 0.99, by = 0.01))) +
+  scale_y_continuous(labels = percent_format(accuracy = 1),
+                     breaks = seq(0, 1, 0.10),
+                     limits = c(0, NA)) +
+  labs(
+    title    = TeX("Bayesian PP SSR: Type I Error and Power vs. $\\gamma_{final}$"),
+    subtitle = TeX(glue(
+      "$p_0 = {p0}$, $p_1 = {p1}$, $n_{{int}} = {n_int}$, $N_{{max}} = {n_max}$, ",
+      "$\\gamma_{{int}} = {gamma_int}$, $PP_{{upper}} = 0.50$, exact enumeration"
+    )),
+    x = TeX("$\\gamma_{final}$ (final analysis posterior threshold)"),
+    y = "Exact Probability",
+    color = NULL, linetype = NULL
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title       = element_text(face = "bold", color = "#1F4E79", size = 11),
+    plot.subtitle    = element_text(color = "gray40", size = 9),
+    panel.grid.minor = element_blank(),
+    legend.position  = "bottom"
+  )
+```
+
+```{=latex}
+\begin{landscape}
+```
+
+```{r bayes-oc-table}
+#| label: tbl-bayes-oc
+#| tbl-cap: "Bayesian PP SSR operating characteristics at selected $\\gamma_\\text{final}$ values. Power / T1E column reports exact power at the corresponding True ORR; at $p = p_0$ = 23% it is the exact Type I error (target ≤ 5%). Design parameters and prior specification appear in the table subtitle."
+selected_gf <- c(0.95, 0.96, 0.975, 0.99)
+
+bayes_sweep |>
+  filter(round(gamma_fin, 4) %in% round(selected_gf, 4)) |>
+  left_join(scen_label_tbl, by = "p_true") |>
+  mutate(
+    `gamma_final`   = round(gamma_fin, 3),
+    `True ORR`      = percent(p_true, accuracy = 1),
+    `Power / T1E`   = percent(power,   accuracy = 0.1),
+    `E[N]`          = round(exp_n, 1),
+    `Pr(Eff stop)`  = percent(pr_eff,  accuracy = 1),
+    `Pr(Fut)`       = percent(pr_fut,  accuracy = 1),
+    `Pr(Prom)`      = percent(pr_prom, accuracy = 1),
+    `Pr(Fav)`       = percent(pr_fav,  accuracy = 1),
+    `Pr(Cap)`       = percent(pr_cap,  accuracy = 1),
+    `N p10/p50/p90` = paste0(n_p10, " / ", n_p50, " / ", n_p90)
+  ) |>
+  arrange(gamma_final, p_true) |>
+  select(`gamma_final`, `True ORR`, Label, `Power / T1E`, `E[N]`,
+         `Pr(Eff stop)`, `Pr(Fut)`, `Pr(Prom)`, `Pr(Fav)`,
+         `Pr(Cap)`, `N p10/p50/p90`) |>
+  gt(groupname_col = "gamma_final") |>
+  tab_source_note(md(glue(
+    "Design: $\\gamma_\\text{{int}} = {gamma_int}$ · ",
+    "$\\text{{PP}}_\\text{{upper}} = 0.50$ · ",
+    "$n_\\text{{int}} = {n_int}$ · $N_\\text{{max}} = {n_max}$ · ",
+    "Prior $\\text{{Beta}}({ap},{bp})$ · exact enumeration."
+  ))) |>
+  tab_style(
+    style    = list(cell_fill(color = "#F8D7DA"), cell_text(weight = "bold")),
+    locations = cells_body(rows = `True ORR` == "23%")
+  ) |>
+  tab_style(
+    style    = list(cell_fill(color = "#D4EDDA"), cell_text(weight = "bold")),
+    locations = cells_body(rows = `True ORR` == "35%")
+  ) |>
+  tab_footnote(
+    "Power / T1E at p = p\u2080 is the exact Type I error; target \u2264 5.0%.",
+    locations = cells_column_labels(columns = `Power / T1E`)
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  tab_options(table.width = pct(100), table.font.size = "small",
+              row_group.font.weight = "bold",
+              heading.title.font.size = "small",
+              heading.subtitle.font.size = "footnotesize")
+```
+
+```{=latex}
+\end{landscape}
+```
+
+
+## Head-to-Head Comparison
+
+For a head-to-head comparison we calibrate each design directly from
+the exact-enumeration sweeps. The Bayesian design is calibrated to
+the smallest $\gamma_\text{final}$ on the grid with exact
+T1E $\leq \alpha$; because Bayesian T1E is monotone, this is the
+highest-power T1E-controlling design. The CP design is calibrated to
+the $\text{CP}_L$ value with the highest exact power at $p_1$ among
+those with T1E $\leq \alpha$ (and flagged as uncalibratable if no
+$\text{CP}_L$ on the grid meets the constraint). The summary below
+is computed from the exact outputs above, not from any external
+benchmark.
+
+```{r calibration-summary}
+#| label: tbl-calibration
+#| tbl-cap: "Calibration summary comparing the CP and Bayesian PP designs. The CP design is uncalibratable in the base setting because every $\\text{CP}_L$ on the grid produces exact T1E above $\\alpha$ = 5% (see Table 1); the Bayesian PP design calibrates at the smallest $\\gamma_\\text{final}$ with exact T1E ≤ $\\alpha$. Calibration values are deterministic (exact enumeration, no Monte Carlo)."
+# Bayesian: smallest gamma_final on the grid with T1E <= alpha.
+# T1E is monotone-decreasing in gamma_fin, so this is the highest-power
+# Bayesian design that controls Type I error.
+bayes_t1e_curve <- bayes_sweep |> filter(p_true == p0) |> arrange(gamma_fin)
+
+bayes_cal_row <- bayes_t1e_curve |>
+  filter(power <= alpha) |>
+  slice_min(order_by = gamma_fin, n = 1)
+
+gamma_fin_cal <- if (nrow(bayes_cal_row) > 0) {
+  bayes_cal_row$gamma_fin
+} else {
+  max(gamma_fin_grid)
+}
+
+bayes_t1e <- bayes_t1e_curve |>
+  filter(round(gamma_fin, 4) == round(gamma_fin_cal, 4)) |>
+  pull(power)
+
+bayes_power <- bayes_sweep |>
+  filter(p_true == p1, round(gamma_fin, 4) == round(gamma_fin_cal, 4)) |>
+  pull(power)
+
+# CP: among CP_L values with T1E <= alpha, pick the one with highest power
+# at p1. (CP T1E drifts only mildly with CP_L and may not be strictly
+# monotone in every parameter setting, so we rank by power-at-p1 rather
+# than by CP_L itself.)
+cp_t1e_curve <- cp_sweep |> filter(p_true == p0) |> select(cp_lower, t1e = power)
+cp_pwr_curve <- cp_sweep |> filter(p_true == p1) |> select(cp_lower, pwr = power)
+cp_curves    <- cp_t1e_curve |> inner_join(cp_pwr_curve, by = "cp_lower")
+
+cp_under_alpha <- cp_curves |> filter(t1e <= alpha) |> arrange(desc(pwr))
+
+cp_best_pl  <- if (nrow(cp_under_alpha) > 0) cp_under_alpha$cp_lower[1] else NA_real_
+cp_t1e      <- if (!is.na(cp_best_pl)) cp_under_alpha$t1e[1]            else NA_real_
+cp_power_p1 <- if (!is.na(cp_best_pl)) cp_under_alpha$pwr[1]            else NA_real_
+
+cp_label     <- if (!is.na(cp_best_pl))  glue("$\\text{{CP}}_L = {cp_best_pl}$") else "None"
+cp_t1e_label <- if (!is.na(cp_t1e))      percent(cp_t1e,      accuracy = 0.1) else "\u2014"
+cp_pwr_label <- if (!is.na(cp_power_p1)) percent(cp_power_p1, accuracy = 0.1) else "\u2014"
+cp_cal_label <- if (!is.na(cp_best_pl)) "Yes" else "No"
+
+tribble(
+  ~Method, ~`Calibration parameter`, ~`T1E at p0`, ~`Power at p1`, ~`Calibratable`,
+  "CP Promising Zone",
+    cp_label,
+    cp_t1e_label,
+    cp_pwr_label,
+    cp_cal_label,
+  "Bayesian PP",
+    glue("$\\gamma_\\text{{final}} = {sprintf('%.3f', gamma_fin_cal)}$"),
+    percent(bayes_t1e,   accuracy = 0.1),
+    percent(bayes_power, accuracy = 0.1),
+    "Yes"
+) |>
+  gt() |>
+  fmt_markdown(columns = `Calibration parameter`) |>
+  cols_label(
+    Method                  = "Method",
+    `Calibration parameter` = "Calibration parameter",
+    `T1E at p0`             = md("T1E at $p_0$"),
+    `Power at p1`           = md("Power at $p_1$"),
+    `Calibratable`          = "Calibratable"
+  ) |>
+  tab_source_note(md(
+    "Calibration values derived from the exact-enumeration sweeps above (deterministic, no Monte Carlo)."
+  )) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  tab_options(table.width = pct(100), table.font.size = "small",
+              heading.title.font.size = "small",
+              heading.subtitle.font.size = "footnotesize")
+```
+
+```{r head-to-head}
+#| label: tbl-head-to-head
+#| tbl-cap: "Head-to-head exact operating characteristics for the calibrated Bayesian PP design and the closest-to-$\\alpha$ CP design across all six true ORR scenarios. Bayesian PP controls T1E and dominates on power; the CP comparator is shown at its closest-to-$\\alpha$ $\\text{CP}_L$ because no $\\text{CP}_L$ on the grid actually achieves T1E ≤ $\\alpha$."
+# Run Bayesian at calibrated gamma_fin across all scenarios
+bayes_cal <- map_dfr(scenarios, function(pt)
+              bayes_oc_exact(p_true = pt, gamma_fin = gamma_fin_cal)) |>
+  left_join(scen_label_tbl, by = "p_true") |>
+  mutate(method = glue("Bayesian PP (gamma_final = {gamma_fin_cal})"))
+
+# Best CP (or closest)
+cp_pl_use <- if (!is.na(cp_best_pl)) {
+  cp_best_pl
+} else {
+  cp_lower_grid[which.min(
+    abs(cp_sweep |> filter(p_true == p0) |> pull(power) - alpha)
+  )]
+}
+
+cp_cal <- map_dfr(scenarios, function(pt)
+              cp_oc_exact(p_true = pt, cp_lower = cp_pl_use)) |>
+  left_join(scen_label_tbl, by = "p_true") |>
+  mutate(method = glue("CP (CP_L = {cp_pl_use})"))
+
+comparison <- bind_rows(bayes_cal, cp_cal)
+
+comparison |>
+  transmute(
+    Method          = method,
+    `True ORR`      = percent(p_true, accuracy = 1),
+    Label           = Label,
+    `Power / T1E`   = percent(power,  accuracy = 0.1),
+    `E[N]`          = round(exp_n, 1),
+    `Pr(Fut)`       = percent(pr_fut, accuracy = 1),
+    `Pr(Cap)`       = percent(pr_cap, accuracy = 1),
+    `N p50 / p90`   = paste0(n_p50, " / ", n_p90)
+  ) |>
+  gt(groupname_col = "Method") |>
+  tab_source_note(md(glue(
+    "Design: $n_\\text{{int}} = {n_int}$ · $N_\\text{{init}} = {n_init}$ · ",
+    "$N_\\text{{max}} = {n_max}$ · exact enumeration."
+  ))) |>
+  tab_style(
+    style    = list(cell_fill(color = "#F8D7DA"), cell_text(weight = "bold")),
+    locations = cells_body(rows = `True ORR` == "23%")
+  ) |>
+  tab_style(
+    style    = list(cell_fill(color = "#D4EDDA"), cell_text(weight = "bold")),
+    locations = cells_body(rows = `True ORR` == "35%")
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  tab_options(table.width = pct(100), table.font.size = "small", row_group.font.weight = "bold",
+              heading.title.font.size = "small",
+              heading.subtitle.font.size = "footnotesize")
+```
+
+```{r combined-power-plot}
+#| label: fig-power-curves
+#| fig-cap: "Power curves for the two calibrated designs. Vertical dotted line marks $p_0$; horizontal dashed line marks 80% target."
+
+comparison |>
+  filter(p_true > p0) |>
+  ggplot(aes(x = p_true, y = power, color = method, linetype = method)) +
+  geom_hline(yintercept = 0.80, linetype = "dashed", color = "gray50", linewidth = 0.5) +
+  geom_line(linewidth = 1.2) +
+  geom_point(size = 3.5, fill = "white", shape = 21, stroke = 1.5) +
+  scale_color_manual(values = c("#2E75B6", "#E67E22")) +
+  scale_linetype_manual(values = c("solid", "dashed")) +
+  scale_x_continuous(labels = percent_format(accuracy = 1),
+                     breaks = scenarios[scenarios > p0]) +
+  scale_y_continuous(labels = percent_format(accuracy = 1),
+                     limits = c(0, 1), breaks = seq(0, 1, 0.1)) +
+  labs(
+    title    = "Power Curves: Bayesian PP vs. CP (Calibrated Designs)",
+    subtitle = TeX(glue("$n_{{int}} = {n_int}$ · $N_{{max}} = {n_max}$ · exact enumeration")),
+    x = "True ORR", y = "Power",
+    color = "Design", linetype = "Design"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title       = element_text(face = "bold", color = "#1F4E79", size = 11),
+    panel.grid.minor = element_blank(),
+    legend.position  = "bottom"
+  )
+```
+
+
+## Generalizability
+
+To examine how CP T1E behaviour generalises beyond the base setting,
+we repeat the CP $\text{CP}_L$ sweep across five
+$(p_0, p_1, n_\text{int}, N_\text{init}, N_\text{max})$ combinations
+spanning $p_0 \in \{0.10, 0.20, 0.23, 0.30, 0.40\}$. @fig-generalizability shows
+that **CP T1E behaviour is highly design-specific**. In the base
+setting ($p_0 = 0.23$) and the $p_0 = 0.20$ setting, exact T1E sits
+above $\alpha = 0.05$ at every $\text{CP}_L$ on the grid. In the
+$p_0 = 0.10$, $p_0 = 0.30$, and $p_0 = 0.40$ settings, some
+$\text{CP}_L$ values produce T1E at or below $\alpha$ while others
+produce inflation, with no monotone or otherwise predictable
+relationship. The qualitative driver is the same in every setting,
+the discrete $z$-test critical count introduces a rounding bias whose
+sign and magnitude depend on $(p_0, N)$, and SSR shifts trials between
+finite-$N$ tests whose biases vary in sign, but the practical
+consequence is that $\text{CP}_L$ cannot be calibrated by a fixed
+rule across designs. Each design configuration requires its own
+enumeration (or simulation) sweep, and the resulting T1E surface is
+too irregular to support a one-size-fits-all calibration.
+
+```{r generalizability}
+#| cache: true
+
+gen_grid <- tribble(
+  ~p0,  ~p1,  ~n_int, ~n_init, ~n_max, ~label,
+  0.10, 0.25,  40L,    55L,    150L,   "p0=0.10, p1=0.25",
+  0.20, 0.35,  50L,    72L,    180L,   "p0=0.20, p1=0.35",
+  0.23, 0.35,  65L,    84L,    200L,   "p0=0.23, p1=0.35 (base)",
+  0.30, 0.45,  55L,    75L,    200L,   "p0=0.30, p1=0.45",
+  0.40, 0.55,  60L,    85L,    200L,   "p0=0.40, p1=0.55"
+)
+
+# Generalizability sweep: exact enumeration across 5 design configurations.
+gen_results <- pmap_dfr(gen_grid, function(p0, p1, n_int, n_init, n_max, label) {
+  map_dfr(cp_lower_grid, function(pl) {
+    cp_oc_exact(
+      p_true   = p0,  # T1E only
+      cp_lower = pl,
+      n_init   = n_init, n_int = n_int, n_max = n_max,
+      p0 = p0, p1 = p1
+    ) |>
+      mutate(scenario_label = label, p0 = p0, p1 = p1)
+  })
+})
+```
+
+```{r fixed-n-ref}
+#| label: tbl-fixed-n
+#| tbl-cap: "Fixed-N reference: exact Type I error of the one-sided z-test at the planned $N_\\text{init}$ for each generalizability setting, before any interim or SSR. The signed bias relative to $\\alpha$ = 5% is the rounding bias inherited by the CP design from the discrete final test alone, separate from any SSR contribution. The base setting ($p_0$ = 0.23, N = 84) and the $p_0$ = 0.20 setting are both biased upward; the others are biased downward."
+
+gen_grid |>
+  mutate(
+    `T1E_fixedN` = pmap_dbl(
+      list(p0 = p0, n_init = n_init),
+      function(p0, n_init) fixed_n_t1e(n_init, p0, alpha)
+    ),
+    `Bias vs α` = `T1E_fixedN` - alpha,
+    `xc(N_init)` = pmap_int(
+      list(n_init = n_init, p0 = p0),
+      function(n_init, p0) x_crit_z_fn(n_init, p0, alpha)
+    )
+  ) |>
+  transmute(
+    Setting        = label,
+    `(p0, p1)`     = sprintf("(%.2f, %.2f)", p0, p1),
+    `N_init`       = n_init,
+    `xc(N_init)`   = `xc(N_init)`,
+    `Fixed-N T1E`  = percent(`T1E_fixedN`, accuracy = 0.01),
+    `Bias vs α`    = sprintf("%+.2f%%", `Bias vs α` * 100)
+  ) |>
+  gt() |>
+  cols_label(
+    Setting       = "Setting",
+    `(p0, p1)`    = md("$(p_0, p_1)$"),
+    `N_init`      = md("$N_\\text{init}$"),
+    `xc(N_init)`  = md("$x_c(N_\\text{init})$"),
+    `Fixed-N T1E` = md("Fixed-$N$ T1E"),
+    `Bias vs α`   = md("Bias vs $\\alpha$")
+  ) |>
+  tab_source_note(md(
+    "Rejection probability of the one-sided $z$-test at $N_\\text{init}$ under $H_0: p = p_0$, with no interim or SSR. $\\alpha = 5\\%$ target."
+  )) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  tab_options(table.width = pct(100), table.font.size = "small",
+              heading.title.font.size = "small",
+              heading.subtitle.font.size = "footnotesize")
+```
+
+```{r generalizability-plot}
+#| label: fig-generalizability
+#| fig-cap: "Exact Type I error as a function of $\\text{CP}_L$ across five design parameter settings. CP T1E behaviour is highly design-specific: in some settings T1E sits above $\\alpha$ at every $\\text{CP}_L$; in others, some $\\text{CP}_L$ values control T1E and others do not, with no monotone or otherwise predictable rule. The pattern supports calibration only by per-design enumeration, not by a fixed-$\\text{CP}_L$ rule."
+
+gen_results |>
+  ggplot(aes(x = cp_lower, y = power, color = scenario_label)) +
+  geom_hline(yintercept = 0.05, linetype = "dotted", color = "red", linewidth = 0.5) +
+  geom_line(linewidth = 1.0) +
+  geom_point(size = 2.5, shape = 21, fill = "white", stroke = 1.2) +
+  annotate("text", x = 0.325, y = 0.046, label = "alpha = 5%",
+           size = 3, color = "red") +
+  scale_color_brewer(palette = "Dark2", name = "Design setting") +
+  scale_x_continuous(breaks = cp_lower_grid) +
+  scale_y_continuous(labels = percent_format(accuracy = 0.1),
+                     breaks = seq(0.02, 0.10, 0.02),
+                     limits = c(0.02, 0.10)) +
+  labs(
+    title    = "Exact CP T1E Across Design Parameter Settings",
+    subtitle = TeX(glue("$CP_{{upper}} = {cp_upper}$, $CP_{{fut}} = {cp_futility}$ · exact enumeration")),
+    x = TeX("CP Promising Lower ($CP_L$)"),
+    y = "Exact Type I Error"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title       = element_text(face = "bold", color = "#1F4E79", size = 11),
+    panel.grid.minor = element_blank(),
+    legend.position  = "bottom"
+  )
+```
+
+
+## Symmetric Comparison: Does the Final-Analysis Rule Drive the CP Inflation?
+
+The original CP design pairs CP-zone SSR with a one-sided $z$-test
+final; the Bayesian design pairs PP-zone SSR with a posterior final.
+The asymmetry leaves open whether the Bayesian T1E advantage comes
+from the SSR logic, the final-analysis rule, or both. We run a
+**partial** symmetric comparison: a single new variant in which the
+**CP-driven** SSR is paired with the **Bayesian posterior** final
+analysis (same zone classification, same SSR target
+$\text{CP}_U = 0.80$, same final threshold $\gamma_\text{final}$
+on the posterior $P(p > p_0 \mid x_\text{total}, n_\text{final})$).
+The only difference between this variant and the original CP design
+is the final analysis rule. If this variant controls T1E, the
+final-analysis rule is *sufficient* to explain the original CP
+inflation, though without also implementing PP-driven SSR with a
+$z$-test final we cannot rule out that the SSR logic *also*
+contributes. We leave that complementary variant as future work
+(see Discussion).
+
+```{r cp-post-final-sweep}
+# CP-driven SSR + posterior final, swept over gamma_fin at the
+# best-power CP_L from Section 4.4 (cp_pl_use).
+cp_post_sweep <- expand_grid(
+  cp_lower  = cp_pl_use,
+  gamma_fin = gamma_fin_grid,
+  p_true    = c(p0, p1)
+) |>
+  pmap_dfr(function(cp_lower, gamma_fin, p_true) {
+    cp_oc_post_final(
+      p_true    = p_true,
+      cp_lower  = cp_lower,
+      gamma_fin = gamma_fin
+    )
+  })
+```
+
+```{r cp-post-final-table}
+#| label: tbl-cp-post-final
+#| tbl-cap: "Symmetric comparison at the closest-to-$\\alpha$ $\\text{CP}_L$ from §4.4 (since no $\\text{CP}_L$ on the grid controls T1E ≤ $\\alpha$ with the z-test final, this is the natural comparator). Same CP-driven SSR machinery, but the final analysis is swapped from z-test to Bayesian posterior. The posterior final produces a monotone, stepwise T1E curve in $\\gamma_\\text{final}$ (consecutive grid values may share an integer critical count and therefore identical T1E), and exact T1E ≤ $\\alpha$ is achievable across multiple $\\gamma_\\text{final}$ values, a far less irregular calibration surface than the z-test final design (Section 4.1)."
+
+cp_post_t1e <- cp_post_sweep |> filter(p_true == p0) |> select(gamma_fin, t1e = power)
+cp_post_pwr <- cp_post_sweep |> filter(p_true == p1) |> select(gamma_fin, pwr = power)
+cp_post_join <- cp_post_t1e |> inner_join(cp_post_pwr, by = "gamma_fin") |>
+  arrange(gamma_fin)
+
+cp_post_join |>
+  transmute(
+    `gamma_final` = sprintf("%.3f", gamma_fin),
+    `T1E at p0`   = percent(t1e, accuracy = 0.1),
+    `Power at p1` = percent(pwr, accuracy = 0.1),
+    `T1E <= alpha?` = ifelse(t1e <= alpha, "Yes", "No")
+  ) |>
+  gt() |>
+  cols_label(
+    `gamma_final`  = md("$\\gamma_\\text{final}$"),
+    `T1E at p0`    = md("T1E at $p_0$"),
+    `Power at p1`  = md("Power at $p_1$"),
+    `T1E <= alpha?` = md("T1E $\\leq \\alpha$?")
+  ) |>
+  tab_source_note(md(glue(
+    "Comparator: $\\text{{CP}}_L = {cp_pl_use}$ (closest-to-α $\\text{{CP}}_L$ ",
+    "from §4.4, used because no $\\text{{CP}}_L$ controls T1E with the $z$-test ",
+    "final). Exact enumeration."
+  ))) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  tab_options(table.width = pct(100), table.font.size = "small",
+              heading.title.font.size = "small",
+              heading.subtitle.font.size = "footnotesize")
+```
+
+```{r four-way-summary}
+#| label: tbl-four-way
+#| tbl-cap: "Three-of-four-way summary. Two SSR rules (CP-driven vs PP-driven) crossed with two final-analysis rules (z-test vs posterior). Three cells are computed; the fourth (PP-driven SSR with z-test final) is left as future work and is not pictured. The three implemented cells show that swapping the final analysis from z-test to posterior renders both SSR variants calibratable, establishing the final-analysis rule as a sufficient explanation of the original CP design's inflation in this setting, but without separating it from a possible SSR-logic contribution."
+
+# Recover the original CP and Bayesian results for the comparison.
+# CP + z-test final: at CP_L = cp_pl_use (closest-to-α since no CP_L is calibrated)
+cp_z_t1e <- cp_sweep |>
+  filter(p_true == p0, round(cp_lower, 4) == round(cp_pl_use, 4)) |> pull(power)
+cp_z_pwr <- cp_sweep |>
+  filter(p_true == p1, round(cp_lower, 4) == round(cp_pl_use, 4)) |> pull(power)
+
+# Bayesian + posterior final (original Bayesian): at calibrated gamma_fin_cal
+bayes_p_t1e <- bayes_t1e
+bayes_p_pwr <- bayes_power
+
+# CP-driven SSR + posterior final: calibrate INDEPENDENTLY (smallest gamma_fin
+# in the cp_post_join grid that controls T1E ≤ alpha at p = p0) so the cell
+# reflects this design's own naturally-chosen calibration, not the Bayesian's.
+cp_post_cal_row <- cp_post_join |>
+  filter(t1e <= alpha) |>
+  slice_min(order_by = gamma_fin, n = 1)
+cp_post_gamma_cal <- if (nrow(cp_post_cal_row) > 0) {
+  cp_post_cal_row$gamma_fin
+} else {
+  max(gamma_fin_grid)  # fallback
+}
+cp_p_t1e <- cp_post_cal_row$t1e[1]
+cp_p_pwr <- cp_post_cal_row$pwr[1]
+
+fmt <- function(t1e, pwr) {
+  if (is.na(t1e) || is.na(pwr)) return("—")
+  sprintf("%s / %s", percent(t1e, accuracy = 0.1), percent(pwr, accuracy = 0.1))
+}
+
+tribble(
+  ~`SSR rule`,                     ~`z-test final (alpha = 0.05)`,    ~`Posterior final (gamma_fin)`,
+  "CP-driven SSR (zone classifier)",  fmt(cp_z_t1e, cp_z_pwr),           fmt(cp_p_t1e, cp_p_pwr),
+  "PP-driven SSR (PP classifier)",    "— (future work)",                  fmt(bayes_p_t1e, bayes_p_pwr)
+) |>
+  gt() |>
+  cols_label(
+    `SSR rule`                       = "SSR rule",
+    `z-test final (alpha = 0.05)`    = md("$z$-test final ($\\alpha = 0.05$)"),
+    `Posterior final (gamma_fin)`    = md("Posterior final ($\\gamma_\\mathrm{final}$)")
+  ) |>
+  tab_source_note(md(glue(
+    "Cells report exact T1E at $p_0$ / exact power at $p_1$. ",
+    "CP-driven + $z$-test: $\\text{{CP}}_L = {cp_pl_use}$ (closest-to-α from §4.4); ",
+    "CP-driven + posterior: $\\gamma_\\text{{final}} = {sprintf('%.3f', cp_post_gamma_cal)}$ ",
+    "(this design's own calibrated $\\gamma_\\text{{final}}$); ",
+    "PP-driven + posterior: $\\gamma_\\text{{final}} = {sprintf('%.3f', gamma_fin_cal)}$ ",
+    "(from §4.4)."
+  ))) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  tab_options(table.width = pct(100), table.font.size = "small",
+              heading.title.font.size = "small",
+              heading.subtitle.font.size = "footnotesize")
+```
+
+The implemented comparison establishes a *narrower* claim than a
+fully-symmetric two-by-two decomposition would: switching the final
+analysis from a $z$-test to a Bayesian posterior is *sufficient* to
+restore calibratable T1E in the CP-driven SSR design, even with the
+same CP-zone SSR logic. This means the discrete $z$-test final is
+**a sufficient cause** of the original CP design's inflation in this
+setting. It does not establish that the $z$-test final is the *only*
+cause; the complementary variant (PP-driven SSR with a $z$-test
+final) is not implemented here, so we cannot rule out that the
+PP-zone SSR logic *also* contributes some T1E control on top of
+what the posterior final provides. We expect that variant would
+inherit the $z$-test discreteness bias (since its final test matches
+the original CP design's), but verifying this is left as future work.
+
+For practitioners, the narrower claim is still actionable:
+those who want to keep the familiar CP-promising-zone SSR machinery
+can recover calibrated T1E by replacing the $z$-test final with a
+Bayesian posterior threshold or with an exactly-calibrated critical
+count; alternatively, they can adopt a Bayesian PP design end-to-end.
+
+
+# Discussion
+
+**Why the Mehta–Pocock guarantee fails for single-arm binary trials.**
+The analytic Type I error control of @mehta2011 is inherited from the
+inverse-normal combination test of @lehmacher1999 and @muller2001,
+which combines pre- and post-interim test statistics on a *continuous*
+$z$-statistic scale. The combination weights are fixed before the
+trial and do not depend on the SSR decision, which preserves the joint
+distribution of the combined statistic under $H_0$. In single-arm
+binary trials, the interim "test statistic" is a binomial response
+count with $n_\text{int} + 1$ possible values, and the final-analysis
+$z$-test is applied to the *integer* total response count. The
+discrete critical count $x_\text{crit}(N)$ is the smallest integer
+with $z \geq z_\alpha$, so the actual fixed-$N$ rejection probability
+under $H_0$ generally differs from the nominal $\alpha$ by a *signed*
+amount that depends on $(p_0, N)$, it can be either upward (e.g.,
+the base setting at $p_0 = 0.23, N = 84$) or downward (e.g., the
+$p_0 = 0.10, N = 55$ setting in @fig-generalizability). The promising-zone SSR
+moves trials between such finite-$N$ tests, with their own
+opposite-sign discreteness biases, in a way that depends on the
+$\text{CP}_L$ threshold and the realised $x_\text{int}$. The
+resulting T1E behaviour is design-specific and irregular: it is not
+a numerical artefact, but a structural consequence of running an
+integer-grid test at finite $N$ combined with $N$-changing SSR, and
+it cannot be controlled by a fixed-$\text{CP}_L$ rule that
+generalises across designs.
+
+**Practical implication for trial designers.** Practitioners using the
+CP promising-zone SSR for single-arm binary trials should not rely on
+the analytic Type I error guarantee from @mehta2011. In our base
+setting no $\text{CP}_L$ on the grid achieves
+$\text{T1E} \leq \alpha$; in other design configurations (@fig-generalizability),
+the picture is mixed, some $\text{CP}_L$ values control T1E, others
+do not, and there is no consistent rule for which. "Tuning"
+$\text{CP}_L$ on a fixed grid is therefore unreliable: the
+discreteness bias dominates the SSR effect and changes sign across
+designs, so a $\text{CP}_L$ that controls T1E in one configuration
+may not control it in another. Practitioners who must nonetheless
+use this design should report exact T1E (or simulated T1E with
+adequate precision) across their full $\text{CP}_L$ grid for their
+*specific* design parameters, treat the
+worst-case T1E across plausible design perturbations as the operating
+characteristic, and not extrapolate calibration from one design to
+another.
+
+**Bayesian PP alternative.** Where calibrated Type I error control
+is required, the Bayesian PP SSR design with separate
+$\gamma_\text{int}$ and $\gamma_\text{final}$ thresholds offers an
+attractive alternative. Exact Type I error is monotone in
+$\gamma_\text{final}$, and although it remains stepwise (success
+ultimately depends on integer counts), the calibration surface is
+far less irregular than the $\text{CP}_L$ surface, enumeration
+over the $\gamma_\text{final}$ grid yields a clean smallest-value
+that controls T1E, with no need to navigate sign-changing
+discreteness bias. Power and operating characteristics are
+competitive with the best-calibrated CP design (when one exists)
+and dominate it when CP cannot be calibrated.
+
+**Regulatory implication.** This is consistent with the FDA 2019 adaptive
+design guidance [@fda2019], which requires demonstration of Type I
+error control, analytically where possible, otherwise via simulation.
+For the one-look single-arm binary design we study, exact enumeration
+is in fact available (we use it for every headline number above) and
+provides stronger evidence than simulation can; for more complex
+adaptive designs where enumeration becomes impractical (multiple
+interim looks, continuous endpoints with adaptive boundaries),
+simulation remains the standard route. Our results imply that any
+analysis, exact or simulated, must evaluate the entire $\text{CP}_L$
+grid the design might use, not a single point.
+
+**Limitations.** The designs studied here have a single interim look,
+a binary ORR endpoint, a Jeffreys non-informative prior, and a
+one-sided normal-approximation $z$-test for the final analysis; our
+exact enumeration is specific to that combination. The qualitative
+claim, that the discrete $z$-test critical count produces a
+*design-specific* (and signed) rounding bias at finite $N$, and that
+$N$-changing SSR rearranges these biases in a way that defies
+fixed-rule calibration, should generalise to other discrete
+endpoints where the final-analysis test reduces to integer-grid
+arithmetic. An exact (Clopper–Pearson) final analysis would push T1E
+uniformly below $\alpha$ at the cost of obscuring the SSR-driven
+boundary-crossing effects we characterise; the choice between
+approximate and exact tests is a separate design decision that
+practitioners should make explicitly. Multiple interim looks,
+informative priors (e.g., MAP), and a fully-symmetric
+Bayesian-vs-frequentist comparison (in which the two designs share a
+final analysis rule and differ only in their interim decision logic)
+are natural directions for follow-up work; for multiple-look designs
+the simulator-based `run_*_scenario` framework in this manuscript is
+the natural extension path, since exact enumeration becomes
+combinatorially expensive once the look count grows.
+
+
+# Conclusion
+
+The Mehta–Pocock conditional-power promising-zone SSR with a one-sided
+$z$-test final analysis cannot be calibrated to a target Type I error
+in single-arm binary trials by a rule that generalises across designs.
+In a representative oncology setting ($p_0 = 0.23$, $p_1 = 0.35$,
+$N_\text{init} = 84$, $n_\text{int} = 65$, $N_\text{max} = 200$), exact
+Type I error sits above the nominal $\alpha$ at every $\text{CP}_L$
+on the grid; across other design configurations, the discrete
+$z$-test critical count's rounding bias changes sign, so
+$\text{CP}_L$ values that control T1E in one configuration may not
+control it in another. The overall T1E surface is too irregular to
+support a fixed-rule calibration. The partial symmetric comparison
+in Section 4.6 shows that switching the CP design's final analysis
+to a Bayesian posterior threshold is **sufficient** to restore
+calibratable T1E, even with the same CP-zone SSR logic; the
+discrete $z$-test final is therefore a *sufficient cause* of the
+inflation. Because we do not implement the complementary variant
+(PP-driven SSR with a $z$-test final), we cannot rule out an
+additional contribution from the SSR-logic itself. Practitioners
+who want calibrated Type I error control therefore have two
+practical paths: replace the $z$-test final with a calibrated
+final-analysis rule (Bayesian posterior threshold or an
+exactly-calibrated critical count chosen so that the fixed-$N$
+test attains nominal $\alpha$) while keeping the CP-zone SSR
+machinery, or adopt a Bayesian PP SSR design end-to-end. Bayesian
+PP SSR is a particularly attractive alternative because its exact
+Type I error is monotone in $\gamma_\text{final}$ and calibrates
+directly by enumeration, the curve is still stepwise (success
+ultimately depends on integer response counts), but the
+calibration surface is far less irregular than the CP_L surface.
+
+
+# Code and Data Availability
+
+All code used in this paper is released as the public R/Quarto repository
+**`cp-ssr-binary-trials`** *(GitHub URL to be added at submission)*. The
+repository contains the Quarto manuscript source (`CP_PromisingZone_SSR_TypeIError.qmd`),
+the bibliography (`references.bib`), and an R script (`R/analysis.R`)
+that defines the exact-enumeration helpers (`cp_oc_exact`, `bayes_oc_exact`,
+`cp_oc_post_final`, `fixed_n_t1e`) and simulator-based fallback functions
+(`sim_trial_cp`, `sim_trial_bayes`, `run_*_scenario`). The manuscript is
+fully reproducible from the `.qmd` source with R $\geq$ 4.4 and the
+following CRAN packages: `tidyverse`, `gt` ($\geq$ 1.0.0), `scales`,
+`patchwork`, `glue`, and `latex2exp`. No external data are used: every
+numerical result is computed from the exact enumeration code in
+`R/analysis.R`.
+
+
+# References
+
+:::{#refs}
+:::
+
+
+# Session Info
+
+```{r session}
+sessionInfo()
+```
