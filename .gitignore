@@ -1,0 +1,76 @@
+# ---------------------------------------------------------------------------
+# Quarto / LaTeX build artifacts (all regenerable by re-rendering)
+# ---------------------------------------------------------------------------
+*.aux
+*.log
+*.out
+*.toc
+*.bbl
+*.blg
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*_files/
+*_cache/
+.quarto/
+*.tex
+figure/
+
+# Rendered outputs. The submission PDFs live outside this repository, in
+# ../Submission_SBR-26-068/.
+*.pdf
+*.html
+
+# Handoff object written by the manuscript and consumed by the supplement.
+# Regenerated on every manuscript render; never committed.
+_supplement_data.rds
+session-info.txt
+
+# ---------------------------------------------------------------------------
+# Double-blind review
+# ---------------------------------------------------------------------------
+# This repository is mirrored by anonymous.4open.science, so anything
+# committed here is visible to referees.
+#
+# CONVENTION: the tracked path CP_PromisingZone_SSR_TypeIError.qmd carries
+# the ANONYMIZED content. The local working copy at that same path is the
+# with-author source, so the file reads as permanently "modified" in
+# `git status`. That is expected and must stay that way until acceptance.
+#
+# WARNING: `git add CP_PromisingZone_SSR_TypeIError.qmd` (or `git add -A`,
+# or `git commit -a`) stages the with-author copy and deanonymizes the
+# repository. .gitignore cannot prevent this, because the path is tracked.
+# To update the committed manuscript, regenerate the anonymized copy and
+# stage it without touching the working tree:
+#
+#     Rscript R/make_anon.R
+#     git update-index --cacheinfo 100644,\
+#       $(git hash-object -w CP_PromisingZone_SSR_TypeIError_anon.qmd),\
+#       CP_PromisingZone_SSR_TypeIError.qmd
+#
+# After acceptance, commit the with-author source directly and delete this
+# block along with the two entries below.
+
+# Generated anonymized copy: an intermediate, staged into the path above
+# rather than committed under its own name.
+CP_PromisingZone_SSR_TypeIError_anon.qmd
+
+# The anonymization script itself names the authors, the organisation and
+# the real repository URL in its FORBIDDEN list, so it cannot ship while
+# review is blind. Commit it after acceptance.
+R/make_anon.R
+
+# ---------------------------------------------------------------------------
+# RStudio / R
+# ---------------------------------------------------------------------------
+.Rproj.user/
+.Rhistory
+.RData
+.Ruserdata
+*.Rproj
+
+# ---------------------------------------------------------------------------
+# OS noise
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db

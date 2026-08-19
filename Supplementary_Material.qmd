@@ -1,0 +1,862 @@
+---
+title: "Supplementary Material"
+subtitle: "Final Critical-Count Calibration in Single-Arm Binary Promising-Zone Designs"
+# No author block. The supplement is identical for the anonymous and
+# with-author submissions, so it carries no author information at all rather
+# than an "anonymized" placeholder that would read as a review artifact.
+date: today
+format:
+  pdf:
+    documentclass: scrartcl
+    papersize: letter
+    geometry:
+      - margin=1in
+    fontsize: 11pt
+    linestretch: 1.15
+    colorlinks: true
+    linkcolor: NavyBlue
+    toc: false
+    number-sections: false
+    fig-width: 9
+    fig-height: 5.5
+    fig-format: png
+    fig-dpi: 200
+    fig-pos: "H"
+    fig-cap-location: bottom
+    tbl-cap-location: top
+    keep-tex: true
+    echo: false
+    include-in-header:
+      text: |
+        \usepackage{float}
+        \usepackage{booktabs}
+        \usepackage{longtable}
+        \usepackage{array}
+        % The wide OC tables (S1, S2) carry 9-10 columns. Default \tabcolsep
+        % (6pt each side) spends ~1.4in of the 6.5in text block on padding
+        % alone; 3pt keeps them inside the margins with room to spare.
+        \setlength{\tabcolsep}{3pt}
+        % Supplementary numbering: S1, S2, ...
+        \renewcommand{\thetable}{S\arabic{table}}
+        \renewcommand{\thefigure}{S\arabic{figure}}
+execute:
+  echo: false
+  warning: false
+  message: false
+bibliography: references.bib
+csl: american-statistical-association.csl
+---
+
+```{r supp-setup}
+#| include: false
+library(tidyverse)
+library(gt)
+library(scales)
+library(patchwork)
+library(glue)
+library(latex2exp)
+
+# Locate the analysis library regardless of working directory.
+.analysis_path <- local({
+  cands <- c("R/analysis.R", "analysis.R",
+             file.path(dirname(tryCatch(knitr::current_input(dir = TRUE),
+                                        error = function(e) ".")),
+                       "R", "analysis.R"))
+  hit <- cands[file.exists(cands)]
+  if (!length(hit)) stop("Could not find R/analysis.R")
+  hit[[1L]]
+})
+source(.analysis_path)
+source(file.path(dirname(.analysis_path), "params.R"))
+
+# Figure styling, matched to the main manuscript.
+COL_BLUE  <- "#2E6F9E"; COL_GOLD <- "#B87913"
+COL_ALPHA <- "#D62728"; COL_FIXED <- "#3F3F3F"
+FIG_BASE <- 14; FIG_AXIS <- 15; FIG_TICK <- 13; FIG_ANN <- 4.3
+fig_theme <- function(legend = "bottom") {
+  theme_minimal(base_size = FIG_BASE) +
+    theme(plot.title = element_blank(), plot.subtitle = element_blank(),
+          axis.title = element_text(size = FIG_AXIS),
+          axis.text = element_text(size = FIG_TICK),
+          legend.text = element_text(size = FIG_TICK),
+          legend.title = element_text(size = FIG_TICK),
+          strip.text = element_text(face = "bold", size = FIG_TICK),
+          panel.grid.minor = element_blank(), legend.position = legend)
+}
+ann_above <- function(y, span, frac = 0.035) y + span * frac
+
+# Objects are exported by the main manuscript rather than recomputed here, so
+# these tables show the same numbers as the main text by construction. Render
+# the manuscript first.
+.rds <- "_supplement_data.rds"
+if (!file.exists(.rds)) {
+  stop("Missing ", .rds, ". Render CP_PromisingZone_SSR_TypeIError.qmd first.")
+}
+D <- readRDS(.rds)
+cp_sweep              <- D$cp_sweep
+bayes_sweep           <- D$bayes_sweep
+factorial_results     <- D$factorial_results
+factorial_sensitivity <- D$factorial_sensitivity
+joint_calibration     <- D$joint_calibration
+alpha_fin_cal         <- D$alpha_fin_cal
+no_fut_results        <- D$no_fut_results
+fixed_n_comparison    <- D$fixed_n_comparison
+exact_final_sweep     <- D$exact_final_sweep
+lfn_summary           <- D$lfn_summary
+pp_upper_results      <- D$pp_upper_results
+gen_pp_results        <- D$gen_pp_results
+gen_strip_labels      <- D$gen_strip_labels
+bc_plot               <- D$bc_plot
+interim_timing_cp_summary <- D$interim_timing_cp_summary
+interim_timing_pp_calibrated <- D$interim_timing_pp_calibrated
+two_look_cp_summary   <- D$two_look_cp_summary
+two_look_cp_results   <- D$two_look_cp_results
+continuity_corrected_timing <- D$continuity_corrected_timing
+pp_fine_calibration   <- D$pp_fine_calibration
+pp_fine_selected      <- D$pp_fine_selected
+historical_drift_results <- D$historical_drift_results
+estimation_sensitivity <- D$estimation_sensitivity
+gamma_fin_selected    <- D$gamma_fin_selected
+scen_label_tbl        <- D$scen_label_tbl
+
+# Contrasts quoted in the factorial source note.
+.no_adapt <- factorial_results |>
+  filter(Adaptation == "No adaptation") |>
+  select(`Final rule`, fixed_t1e = t1e)
+.adapt <- factorial_results |> filter(Adaptation != "No adaptation")
+adaptive_final_rule_contrast <- with(
+  .adapt |> select(Adaptation, `Final rule`, t1e) |>
+    pivot_wider(names_from = `Final rule`, values_from = t1e),
+  mean(`z test` - Posterior))
+cp_pp_mapping_contrast <- with(
+  .adapt |> group_by(Adaptation) |> summarise(m = mean(t1e), .groups = "drop"),
+  m[1] - m[2])
+fixed_final_rule_contrast <- with(
+  .no_adapt |> pivot_wider(names_from = `Final rule`, values_from = fixed_t1e),
+  `z test` - Posterior)
+```
+
+This document contains supplementary tables and figures referenced in
+*Final Critical-Count Calibration in Single-Arm Binary Promising-Zone
+Designs*. Every value is an exact enumeration of the joint
+interim-and-final binomial distribution, computed by the same code that
+produces the main article; no result here relies on Monte Carlo
+estimation. The material is supporting detail: the article's claims are
+established in the main text, and these items supply fuller operating
+characteristics and robustness checks.
+
+# Full operating characteristics
+
+The main article reports Type I error for each design in figures, together
+with the power, expected sample size and zone probabilities at the
+representative setting. The three tables below give the corresponding
+operating characteristics in full, across the response scenarios and
+threshold values evaluated.
+
+Table S1 supports Section 4.1 and reports the conditional-power design at
+four values of $\mathrm{CP}_L$. Table S2 supports Section 4.3 and reports
+the predictive-probability design at five values of
+$\gamma_\mathrm{final}$. Both give power at each true response rate,
+expected sample size, sample-size percentiles, and the probability of each
+interim zone. Table S3 supports Section 4.6 and adds power to the
+final-rule and adaptation-mapping comparison shown in Figure 4 of the main
+article.
+
+```{r tbl-s-cp-oc}
+#| tbl-cap: "CP SSR operating characteristics at selected values of the promising lower bound. The Power / T1E column reports exact power at the corresponding true response rate; at the null value it is the exact Type I error, against a 5% target. Pr(cap) is the probability of reaching the maximum sample size, and the last column gives the 10th, 50th and 90th percentiles of the final sample size. Design parameters appear in the source note."
+selected_pl <- c(0.30, 0.50, 0.65, 0.80)
+
+# Use round() to avoid floating-point mismatches from seq()
+cp_sweep |>
+  filter(round(cp_lower, 4) %in% round(selected_pl, 4)) |>
+  left_join(scen_label_tbl, by = "p_true") |>
+  mutate(
+    `CP_L`          = round(cp_lower, 2),
+    `True ORR`      = percent(p_true, accuracy = 1),
+    `Power / T1E`   = percent(power,   accuracy = 0.1),
+    `E[N]`          = round(exp_n, 1),
+    `Pr(Fut)`       = percent(pr_fut,  accuracy = 1),
+    `Pr(Prom)`      = percent(pr_prom, accuracy = 1),
+    `Pr(Fav)`       = percent(pr_fav,  accuracy = 1),
+    `Pr(Cap)`       = percent(pr_cap,  accuracy = 1),
+    `N pct`         = paste0(n_p10, "/", n_p50, "/", n_p90)
+  ) |>
+  arrange(`CP_L`, p_true) |>
+  select(`CP_L`, `True ORR`, Label, `Power / T1E`, `E[N]`,
+         `Pr(Fut)`, `Pr(Prom)`, `Pr(Fav)`, `Pr(Cap)`, `N pct`) |>
+  gt(groupname_col = "CP_L") |>
+  cols_label(
+    `True ORR`    = md("True ORR"),
+    `Power / T1E` = md("Power / T1E"),
+    `E[N]`        = md("$E[N]$"),
+    `Pr(Fut)`     = md("$\\Pr(\\text{fut})$"),
+    `Pr(Prom)`    = md("$\\Pr(\\text{prom})$"),
+    `Pr(Fav)`     = md("$\\Pr(\\text{fav})$"),
+    `Pr(Cap)`     = md("$\\Pr(\\text{cap})$"),
+    `N pct`       = md("$N$ p10/p50/p90")
+  ) |>
+  tab_source_note(md(glue(
+    "Design: $\\text{{CP}}_\\text{{upper}} = {cp_upper}$ · ",
+    "$\\text{{CP}}_\\text{{fut}} = {cp_futility}$ · ",
+    "$n_\\text{{int}} = {n_int}$ · $N_\\text{{max}} = {n_max}$ · ",
+    "exact enumeration."
+  ))) |>
+  tab_style(
+    style    = list(cell_fill(color = "#F8D7DA"), cell_text(weight = "bold")),
+    locations = cells_body(rows = `True ORR` == "23%")
+  ) |>
+  tab_style(
+    style    = list(cell_fill(color = "#D4EDDA"), cell_text(weight = "bold")),
+    locations = cells_body(rows = `True ORR` == "35%")
+  ) |>
+  tab_footnote(
+    "Power / T1E column: at p = p0 this is the exact Type I error; target <= 5.0%.",
+    locations = cells_column_labels(columns = `Power / T1E`)
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  # NOTE: table.font.size must be a CSS length. LaTeX size keywords
+  # ("scriptsize", "tiny") are silently ignored by gt's LaTeX backend, which
+  # then emits no font-size statement at all and the table sets at full body
+  # size -- the cause of the S1/S2 page overflow. px(10) = 7.5pt.
+  tab_options(table.width = pct(100), table.font.size = px(10),
+              row_group.font.weight = "bold")
+```
+
+```{r tbl-s-bayes-oc}
+#| tbl-cap: "Bayesian PP SSR operating characteristics at selected final posterior thresholds. The Power / T1E column reports exact power at the corresponding true response rate; at the null value it is the exact Type I error, against a 5% target. Pr(eff) is the probability of stopping early for efficacy, Pr(cap) the probability of reaching the maximum sample size, and the last column gives the 10th, 50th and 90th percentiles of the final sample size. Design parameters and the prior appear in the source note."
+selected_gf <- sort(unique(c(0.95, gamma_fin_selected, 0.96, 0.975, 0.99)))
+
+bayes_sweep |>
+  filter(round(gamma_fin, 4) %in% round(selected_gf, 4)) |>
+  left_join(scen_label_tbl, by = "p_true") |>
+  mutate(
+    `gamma_final`   = round(gamma_fin, 3),
+    `True ORR`      = percent(p_true, accuracy = 1),
+    `Power / T1E`   = percent(power,   accuracy = 0.1),
+    `E[N]`          = round(exp_n, 1),
+    `Pr(Eff)`       = percent(pr_eff,  accuracy = 1),
+    `Pr(Fut)`       = percent(pr_fut,  accuracy = 1),
+    `Pr(Prom)`      = percent(pr_prom, accuracy = 1),
+    `Pr(Fav)`       = percent(pr_fav,  accuracy = 1),
+    `Pr(Cap)`       = percent(pr_cap,  accuracy = 1),
+    `N pct`         = paste0(n_p10, "/", n_p50, "/", n_p90)
+  ) |>
+  arrange(gamma_final, p_true) |>
+  select(`gamma_final`, `True ORR`, Label, `Power / T1E`, `E[N]`,
+         `Pr(Eff)`, `Pr(Fut)`, `Pr(Prom)`, `Pr(Fav)`, `Pr(Cap)`, `N pct`) |>
+  gt(groupname_col = "gamma_final") |>
+  cols_label(
+    `True ORR`    = md("True ORR"),
+    `Power / T1E` = md("Power / T1E"),
+    `E[N]`        = md("$E[N]$"),
+    `Pr(Eff)`     = md("$\\Pr(\\text{eff})$"),
+    `Pr(Fut)`     = md("$\\Pr(\\text{fut})$"),
+    `Pr(Prom)`    = md("$\\Pr(\\text{prom})$"),
+    `Pr(Fav)`     = md("$\\Pr(\\text{fav})$"),
+    `Pr(Cap)`     = md("$\\Pr(\\text{cap})$"),
+    `N pct`       = md("$N$ p10/p50/p90")
+  ) |>
+  tab_source_note(md(glue(
+    "Design: $\\gamma_\\text{{int}} = {gamma_int}$ · ",
+    "$\\text{{PP}}_\\text{{upper}} = 0.50$ · ",
+    "$n_\\text{{int}} = {n_int}$ · $N_\\text{{max}} = {n_max}$ · ",
+    "Prior $\\text{{Beta}}({ap},{bp})$ · exact enumeration."
+  ))) |>
+  tab_style(
+    style    = list(cell_fill(color = "#F8D7DA"), cell_text(weight = "bold")),
+    locations = cells_body(rows = `True ORR` == "23%")
+  ) |>
+  tab_style(
+    style    = list(cell_fill(color = "#D4EDDA"), cell_text(weight = "bold")),
+    locations = cells_body(rows = `True ORR` == "35%")
+  ) |>
+  tab_footnote(
+    "Power / T1E at p = p0 is the exact Type I error; target <= 5.0%.",
+    locations = cells_column_labels(columns = `Power / T1E`)
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  # px(9) = 6.75pt. One column wider than S1, so a step smaller. See the note
+  # on the S1 chunk above for why LaTeX size keywords cannot be used here.
+  tab_options(table.width = pct(100), table.font.size = px(9),
+              row_group.font.weight = "bold")
+```
+
+```{r tbl-s-factorial}
+#| tbl-cap: "Final-rule and adaptation-mapping comparison in the base design, with interim efficacy disabled. The no-adaptation row evaluates both final rules at the planned sample size. Cells report exact Type I error and power."
+factorial_results |>
+  mutate(`Type I error` = percent(t1e, accuracy = 0.01),
+         Power = percent(power, accuracy = 0.01)) |>
+  select(Adaptation, `Final rule`, `Type I error`, Power) |>
+  gt(groupname_col = "Adaptation") |>
+  # Plain prose: gt() source notes do not render Markdown math reliably.
+  tab_source_note(glue(
+    "Average final-rule contrast within the two adaptive mappings: ",
+    "{sprintf('%+.2f', 100 * adaptive_final_rule_contrast)} percentage points. ",
+    "CP-versus-PP mapping contrast: ",
+    "{sprintf('%+.2f', 100 * cp_pp_mapping_contrast)} points. ",
+    "Fixed-sample final-rule contrast: ",
+    "{sprintf('%+.2f', 100 * fixed_final_rule_contrast)} points."
+  )) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels())
+```
+
+
+# Robustness and sensitivity checks
+
+Two design choices could in principle drive the main article's conclusions:
+the pair of thresholds at which the final-rule comparison is evaluated, and
+the favorable-zone boundary of the predictive-probability design. The
+favorable-zone boundary does not. The threshold pair matters at one end of
+the grid: at the smallest posterior threshold considered,
+$\gamma_\mathrm{final} = 0.950$, the two final rules nearly coincide, so
+the final-rule contrast collapses while the mapping contrast does not, and
+the ordering reported in the main article reverses in absolute value. That
+threshold does not control the Type I error rate and is excluded by the
+prospective calibration rule; across the thresholds that do control it, the
+ordering holds at every combination.
+
+Table S4 supports Section 4.6 and repeats the final-rule and
+adaptation-mapping contrasts across the full prespecified
+$\mathrm{CP}_L \times \gamma_\mathrm{final}$ grid rather than at a single
+threshold pair. Table S5 supports Section 4.8 and varies the
+favorable-zone boundary $\mathrm{PP}_U$ from 0.30 to 0.70 at the
+prospectively selected final threshold; Type I error remains controlled
+throughout, although power varies materially, which is why the boundary is
+treated as part of the design to be calibrated rather than a free choice.
+Tables S6 and S7 support Section 4.9 and report the one-look
+interim-timing sensitivity for the CP and prospectively recalibrated PP
+designs. Table S9 supports Section 4.10 and reports the two representative
+two-look CP schedules. Tables S8, S10, and S11 support Section 4.11: they report a coherent
+continuity-corrected CP design, a finer posterior-threshold calibration grid,
+and exact post-adaptation estimation diagnostics. Figure S3 examines
+historical-benchmark drift; its probabilities above the design benchmark are
+decision-risk quantities, not Type I error under the formal null $p\leq p_0$.
+Tables S12--S16 and Figure S4 preserve the detailed calibration and
+verification displays summarized in the main article.
+
+```{r tbl-s-factorial-sensitivity}
+#| tbl-cap: "Sensitivity of descriptive Type I error contrasts to the CP promising-zone and posterior final-rule thresholds in the base design. Interim efficacy is disabled and each adaptation mapping is frozen when the final rule is swapped."
+# factorial_sensitivity arrives from the main manuscript via the exported
+# .rds. It was previously recomputed here, which silently disabled the
+# "same numbers by construction" guarantee stated above for this table.
+factorial_sensitivity |>
+  summarise(
+    `Final-rule contrast, minimum` = min(final_rule_contrast),
+    `Final-rule contrast, maximum` = max(final_rule_contrast),
+    `CP-vs-PP contrast, minimum` = min(cp_pp_mapping_contrast),
+    `CP-vs-PP contrast, maximum` = max(cp_pp_mapping_contrast)
+  ) |>
+  pivot_longer(everything(), names_to = "Contrast", values_to = "Value") |>
+  mutate(`Percentage points` = sprintf("%+.2f", 100 * Value)) |>
+  select(Contrast, `Percentage points`) |>
+  gt() |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels())
+```
+
+```{r tbl-s-pp-upper}
+#| tbl-cap: "Sensitivity of the Bayesian PP design to the favorable-zone boundary at the prospectively selected $\\gamma_\\mathrm{final}$."
+# As with Table S4, pp_upper_results arrives from the main manuscript via
+# the exported .rds and is not recomputed here.
+pp_upper_results |>
+  mutate(Probability = percent(power, accuracy = 0.01)) |>
+  select(`PP upper`, Estimand, Probability) |>
+  pivot_wider(names_from = Estimand, values_from = Probability) |>
+  gt() |>
+  cols_label(`PP upper` = md("$\\mathrm{PP}_U$")) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels())
+```
+
+
+```{r tbl-s-interim-timing-cp}
+#| tbl-cap: "Interim-timing sensitivity for the CP design at $\\mathrm{CP}_L=0.50$. The score-$z$ and exact-binomial final analyses use the same CP mapping. Total delta compares the complete CP-$z$ design with the fixed-$N$ score-$z$ test; mapping delta disables futility to isolate re-estimation; final-rule delta compares the score-$z$ and exact-binomial finals with the CP mapping frozen."
+
+interim_timing_cp_summary |>
+  transmute(
+    Timing = timing_label,
+    `z T1E` = percent(z_t1e, accuracy = 0.01),
+    `Exact T1E` = percent(exact_t1e, accuracy = 0.01),
+    `z power` = percent(z_power, accuracy = 0.01),
+    `Exact power` = percent(exact_power, accuracy = 0.01),
+    `E[N]` = round(exp_n_null, 1),
+    `Pr(Fut)` = percent(pr_fut_null, accuracy = 0.1),
+    `Pr(Prom)` = percent(pr_prom_null, accuracy = 0.1),
+    `Total delta` = sprintf("%+.2f", 100 * total_adaptation_delta),
+    `Mapping delta` = sprintf("%+.2f", 100 * mapping_only_delta),
+    `Final-rule delta` = sprintf("%+.2f", 100 * final_rule_delta)
+  ) |>
+  gt() |>
+  cols_label(
+    `E[N]` = md("$E[N]$"),
+    `Pr(Fut)` = md("$\\Pr(\\mathrm{fut})$"),
+    `Pr(Prom)` = md("$\\Pr(\\mathrm{prom})$")
+  ) |>
+  tab_source_note(
+    "Exact enumeration. Delta columns are Type I error percentage points."
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(8))
+```
+
+```{r tbl-s-interim-timing-pp}
+#| tbl-cap: "Interim-timing sensitivity for the Bayesian PP design. At each timing, the reported posterior threshold is the smallest value on the prespecified grid whose exact Type I error does not exceed 5%."
+
+interim_timing_pp_calibrated |>
+  transmute(
+    Timing = timing_label,
+    `gamma_final` = sprintf("%.3f", gamma_fin),
+    T1E = percent(t1e, accuracy = 0.01),
+    Power = percent(power, accuracy = 0.01),
+    `E[N]` = round(exp_n_null, 1),
+    `Pr(Eff)` = percent(pr_eff_null, accuracy = 0.1),
+    `Pr(Fut)` = percent(pr_fut_null, accuracy = 0.1),
+    `Pr(Prom)` = percent(pr_prom_null, accuracy = 0.1),
+    `Pr(Cap)` = percent(pr_cap_null, accuracy = 0.1)
+  ) |>
+  gt() |>
+  cols_label(
+    `gamma_final` = md("$\\gamma_\\mathrm{final}$"),
+    `E[N]` = md("$E[N]$"),
+    `Pr(Eff)` = md("$\\Pr(\\mathrm{eff})$"),
+    `Pr(Fut)` = md("$\\Pr(\\mathrm{fut})$"),
+    `Pr(Prom)` = md("$\\Pr(\\mathrm{prom})$"),
+    `Pr(Cap)` = md("$\\Pr(\\mathrm{cap})$")
+  ) |>
+  tab_source_note(
+    "Exact enumeration with the Jeffreys prior and the prespecified PP zone boundaries."
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(9))
+```
+
+```{r tbl-s-continuity-corrected}
+#| tbl-cap: "Coherently continuity-corrected CP design across interim timings and the full prespecified $\\mathrm{CP}_L$ grid. Both the conditional-power mapping and final rejection boundary use the continuity correction. Ranges are across $\\mathrm{CP}_L=0.30,\\ldots,0.80$."
+
+continuity_corrected_timing |>
+  group_by(Timing = timing_label) |>
+  summarise(
+    `T1E range` = paste0(
+      percent(min(t1e), accuracy = 0.01), "--",
+      percent(max(t1e), accuracy = 0.01)
+    ),
+    `Power range` = paste0(
+      percent(min(power), accuracy = 0.01), "--",
+      percent(max(power), accuracy = 0.01)
+    ),
+    `E[N] range under null` = paste0(
+      sprintf("%.1f", min(exp_n_null)), "--",
+      sprintf("%.1f", max(exp_n_null))
+    ),
+    .groups = "drop"
+  ) |>
+  gt() |>
+  tab_source_note(
+    paste(
+      "Exact enumeration. Every evaluated Type I error is at or below 5%,",
+      "and every evaluated power is below the 80% design target."
+    )
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(9))
+```
+
+```{r tbl-s-two-look}
+#| tbl-cap: "Exact two-look CP sensitivity at $\\mathrm{CP}_L=0.50$. At each look the sample-size target may be retained or increased but not reduced; there is no interim efficacy rejection. The exact final uses the same pathwise CP mapping as the score-$z$ final. Mapping delta disables futility and compares re-estimation with the fixed-$N$ score-$z$ test; final-rule delta replaces the score-$z$ final with the exact-binomial count."
+
+two_look_cp_summary |>
+  transmute(
+    Schedule = schedule,
+    `z T1E` = percent(z_t1e, accuracy = 0.01),
+    `Exact T1E` = percent(exact_t1e, accuracy = 0.01),
+    `z power` = percent(z_power, accuracy = 0.01),
+    `Exact power` = percent(exact_power, accuracy = 0.01),
+    `E[N]` = round(exp_n_null, 1),
+    `Pr(Fut)` = percent(pr_fut_null, accuracy = 0.1),
+    `Pr(Increase)` = percent(pr_increase_null, accuracy = 0.1),
+    `Mapping delta` = sprintf("%+.2f", 100 * mapping_only_delta),
+    `Final-rule delta` = sprintf("%+.2f", 100 * final_rule_delta)
+  ) |>
+  gt() |>
+  cols_label(
+    `E[N]` = md("$E[N]$"),
+    `Pr(Fut)` = md("$\\Pr(\\mathrm{fut})$"),
+    `Pr(Increase)` = md("$\\Pr(\\mathrm{increase})$")
+  ) |>
+  tab_source_note(
+    "Exact enumeration. Delta columns are Type I error percentage points."
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(8))
+```
+
+```{r tbl-s-fine-calibration}
+#| tbl-cap: "Fine-grid posterior calibration near the smallest controlling threshold. Consecutive thresholds can share the same integer critical counts and therefore the same operating characteristics."
+
+pp_fine_calibration |>
+  filter(gamma_fin >= 0.952, gamma_fin <= 0.957) |>
+  transmute(
+    `gamma_final` = sprintf("%.3f", gamma_fin),
+    T1E = percent(t1e, accuracy = 0.01),
+    Power = percent(power, accuracy = 0.01),
+    `E[N] under null` = round(exp_n_null, 1),
+    `Controls 5%` = if_else(t1e <= alpha, "Yes", "No")
+  ) |>
+  gt() |>
+  cols_label(`gamma_final` = md("$\\gamma_\\mathrm{final}$")) |>
+  tab_source_note(
+    "Exact enumeration on a 0.001 grid; 0.955 is the smallest controlling value."
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(9))
+```
+
+```{r tbl-s-estimation}
+#| tbl-cap: "Exact post-adaptation estimation diagnostics. Bias and RMSE refer to the unadjusted maximum-likelihood estimator; coverage applies ordinary fixed-sample 95% Clopper--Pearson and Wilson intervals after the data-dependent sample size [@clopper1934; @wilson1927]. These are diagnostics, not adaptive-adjusted confidence procedures [@shan2017]."
+
+estimation_sensitivity |>
+  transmute(
+    Design,
+    `True ORR` = percent(p_true, accuracy = 1),
+    Bias = sprintf("%+.4f", bias),
+    RMSE = sprintf("%.4f", rmse),
+    `CP coverage` = percent(exact_coverage, accuracy = 0.1),
+    `Wilson coverage` = percent(wilson_coverage, accuracy = 0.1),
+    `E[N]` = round(exp_n, 1)
+  ) |>
+  gt() |>
+  cols_label(`E[N]` = md("$E[N]$")) |>
+  tab_source_note("Exact enumeration under the base design at p0 and p1.") |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(9))
+```
+
+
+# Additional calibration and verification tables
+
+```{r tbl-s-joint-calibration}
+#| tbl-cap: "Joint calibration of the CP design by varying the nominal final score-$z$ level with $\\mathrm{CP}_L=0.50$. Conditional power and the SSR target are recomputed against each candidate boundary."
+
+joint_calibration |>
+  filter(round(alpha_fin, 4) %in% round(c(0.0500, 0.0450,
+                                          alpha_fin_cal, 0.0400), 4)) |>
+  mutate(`Final alpha` = sprintf("%.4f", alpha_fin),
+         Estimand = estimand,
+         Probability = percent(power, accuracy = 0.01)) |>
+  select(`Final alpha`, Estimand, Probability) |>
+  pivot_wider(names_from = Estimand, values_from = Probability) |>
+  arrange(desc(`Final alpha`)) |>
+  gt() |>
+  cols_label(`Final alpha` = md("$\\alpha_\\mathrm{final}$")) |>
+  tab_source_note(glue(
+    "Largest controlling grid value: {sprintf('%.4f', alpha_fin_cal)}. Exact enumeration."
+  )) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels())
+```
+
+```{r tbl-s-no-futility}
+#| tbl-cap: "Exact operating characteristics with and without futility stopping in the base design. Interim efficacy remains active only for the Bayesian design."
+
+nf_prob_s <- no_fut_results |>
+  mutate(Probability = percent(power, accuracy = 0.01)) |>
+  select(Design, Futility, estimand, Probability) |>
+  pivot_wider(names_from = estimand, values_from = Probability)
+nf_en_s <- no_fut_results |>
+  filter(estimand == "Type I error") |>
+  transmute(Design, Futility, `E[N]` = round(exp_n, 1))
+
+nf_prob_s |>
+  left_join(nf_en_s, by = c("Design", "Futility")) |>
+  gt(groupname_col = "Design") |>
+  cols_label(`E[N]` = md("$E[N]$ under $p_0$")) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels())
+```
+
+\newpage
+
+```{r tbl-s-fixed-n}
+#| tbl-cap: "Fixed-$N$ comparison of the score-form $z$ and exact one-sided binomial tests at the planned sample size, before any interim look or adaptation."
+
+fixed_n_comparison |>
+  transmute(
+    Setting = glue("p0={sprintf('%.2f', p0)}, p1={sprintf('%.2f', p1)}{if_else(str_detect(label, 'base'), ' (base)', '')}"),
+    `N init` = n_init,
+    `z critical` = z_crit,
+    `Exact critical` = exact_crit,
+    `z T1E` = percent(z_t1e, accuracy = 0.01),
+    `Exact T1E` = percent(exact_t1e, accuracy = 0.01),
+    `z power` = percent(z_power, accuracy = 0.01),
+    `Exact power` = percent(exact_power, accuracy = 0.01)
+  ) |>
+  gt() |>
+  cols_label(`N init` = md("$N_\\mathrm{init}$")) |>
+  tab_source_note("One-sided nominal alpha = 5%; exact enumeration.") |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(8))
+```
+
+```{r tbl-s-exact-final}
+#| tbl-cap: "Exact operating characteristics after replacing only the final score-$z$ rule with the exact one-sided binomial rule. The estimated-effect CP adaptation mapping is identical between columns."
+
+exact_final_sweep |>
+  transmute(
+    `CP_L` = sprintf("%.2f", cp_lower),
+    `z T1E` = percent(z_t1e, accuracy = 0.01),
+    `Exact T1E` = percent(exact_t1e, accuracy = 0.01),
+    `z power` = percent(z_power, accuracy = 0.01),
+    `Exact power` = percent(exact_power, accuracy = 0.01),
+    `Power cost` = sprintf("%.2f pp", 100 * (z_power - exact_power))
+  ) |>
+  gt() |>
+  cols_label(`CP_L` = md("$\\mathrm{CP}_L$")) |>
+  tab_source_note("Exact enumeration; the CP mapping is frozen when the final rule is changed.") |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(9))
+```
+
+```{r tbl-s-least-favorable}
+#| tbl-cap: "Numerical least-favorable-null check over 201 response rates at or below $p_0$."
+
+lfn_summary |>
+  mutate(
+    `Worst p` = sprintf("%.3f", `Worst p`),
+    `Worst T1E` = percent(`Worst T1E`, accuracy = 0.01)
+  ) |>
+  gt() |>
+  cols_label(
+    `Worst p` = md("$p^{*}$"),
+    `Worst T1E` = "Max T1E",
+    `At boundary` = md("At $p_0$")
+  ) |>
+  tab_source_note(
+    "Monotone indicates a nondecreasing rejection probability over the evaluated null grid; this is a numerical check, not a proof."
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels())
+```
+
+\clearpage
+
+# Additional figures
+
+\mbox{}\par
+
+Figure S1 supports Section 4.5. The main article states that the smallest
+controlling $\gamma_\mathrm{final}$ differs across the five design
+configurations, so that a threshold high enough to control the level
+everywhere is the least conservative choice in only one of them; this
+figure shows the underlying sweep in each configuration, with the smallest
+controlling threshold marked where one exists.
+
+Figure S2 supports Section 4.2. The main article reports how many interim
+counts cross a promising-to-unfavorable boundary as $\mathrm{CP}_L$ is
+raised, the sign of each crossing and their total magnitude; this figure
+gives the individual signed contributions. The effect is the smallest of
+the three sources decomposed in that section, which is why it appears here
+rather than in the main text.
+
+Figure S3 supports Section 4.11. It keeps the design benchmark fixed at
+$p_0=0.23$ while, under no treatment effect, the observed trial ORR equals a
+varying actual untreated response rate. The vertical reference marks the
+design benchmark. To the right of that line, the plotted positive-decision
+probabilities describe the risk of using a benchmark that is too low; they
+are not Type I error under the manuscript's formal null.
+
+Figure S4 supports Section 4.6 and displays the full $\mathrm{CP}_L$ sweep
+after changing only the final decision rule while holding the CP adaptation
+mapping fixed. Exact values appear in Table S15.
+
+```{r fig-s-pp-generalizability}
+#| fig-cap: "Exact Bayesian predictive-probability Type I error across the same five design configurations, sweeping $\\gamma_\\text{final}$ with the prior, interim efficacy threshold and predictive-probability zone boundaries held fixed. The red dotted line is nominal $\\alpha = 0.05$; the vertical long-dashed line marks the smallest evaluated $\\gamma_\\text{final}$ that controls Type I error in each configuration. Panels in which no evaluated threshold controls the level carry no vertical line."
+#| fig-height: 7.2
+pp_control_thresholds <- gen_pp_results |>
+  filter(power <= alpha) |>
+  group_by(scenario_label) |>
+  slice_min(gamma_fin, n = 1, with_ties = FALSE) |>
+  ungroup()
+
+pp_rng <- range(c(gen_pp_results$power, alpha), na.rm = TRUE)
+pp_pad <- max(diff(pp_rng) * 0.08, 2e-3)
+
+gen_pp_results |>
+  ggplot(aes(gamma_fin, power)) +
+  geom_hline(yintercept = alpha, linetype = "dotted",
+             color = COL_ALPHA, linewidth = 0.55) +
+  geom_vline(
+    data = pp_control_thresholds,
+    aes(xintercept = gamma_fin),
+    color = COL_GOLD, linetype = "longdash", linewidth = 0.65,
+    inherit.aes = FALSE
+  ) +
+  geom_line(color = COL_BLUE, linewidth = 1) +
+  geom_point(color = COL_BLUE, size = 2.2, shape = 21, fill = "white") +
+  facet_wrap(
+    ~ scenario_label,
+    ncol = 2,
+    labeller = labeller(
+      scenario_label = as_labeller(gen_strip_labels, default = label_parsed)
+    )
+  ) +
+  # Right-aligned and lifted further off the line (frac = 0.09 rather than the
+  # 0.035 default) because the PP curves run close to alpha in several panels.
+  annotate("text", x = max(gen_pp_results$gamma_fin), hjust = 1,
+           y = ann_above(alpha,
+                         diff(c(pp_rng[1] - pp_pad, pp_rng[2] + pp_pad)),
+                         frac = 0.09),
+           label = TeX("$\\alpha = 5\\%$"),
+           size = FIG_ANN, color = COL_ALPHA) +
+  scale_y_continuous(labels = percent_format(accuracy = 0.1)) +
+  coord_cartesian(ylim = c(pp_rng[1] - pp_pad, pp_rng[2] + pp_pad)) +
+  labs(x = TeX("$\\gamma_{final}$"), y = "Exact Type I error") +
+  fig_theme(legend = "none") +
+  theme(panel.spacing = grid::unit(1.1, "lines"))
+```
+
+\newpage
+
+```{r fig-s-mechanism}
+#| fig-cap: "Signed Type I error contribution for each interim response count that crosses from the promising to the unfavorable zone as $\\text{CP}_L$ increases. Negative values reduce the attained level and positive values increase it; direct labels report percentage-point changes. Steps at which no interim count crosses a boundary are omitted. The vertical reference line marks zero change."
+#| fig-height: 3.8
+# bc_plot arrives fully prepared from the main manuscript via the exported
+# .rds, including the two-line plotmath axis labels, so it is not rebuilt
+# here. Rebuilding would require boundary_crossings, which is a manuscript
+# object and is deliberately not recomputed in this document.
+
+if (nrow(bc_plot) == 0) {
+  message("No boundary crossings found, check cp_lower_grid and cp_at_init values.")
+} else {
+  bc_plot |>
+    ggplot(aes(x = delta_pp, y = crossing, fill = delta_pp > 0)) +
+    geom_col(width = 0.62, alpha = 0.9) +
+    # Zero-change reference, not a nominal level: red is reserved for alpha.
+    geom_vline(xintercept = 0, linewidth = 0.6, color = COL_FIXED) +
+    geom_text(
+      aes(label = sprintf("%+.3f pp", delta_pp),
+          hjust = if_else(delta_pp > 0, -0.12, 1.12)),
+      size = FIG_ANN, color = "#2B2B2B"
+    ) +
+    scale_fill_manual(
+      values = c("TRUE" = COL_GOLD, "FALSE" = COL_BLUE),
+      guide = "none"
+    ) +
+    scale_x_continuous(
+      labels = label_number(accuracy = 0.01, suffix = " pp"),
+      expand = expansion(mult = c(0.28, 0.28))
+    ) +
+    # Labels are plotmath expressions (see atop() above), not TeX strings.
+    scale_y_discrete(labels = function(x) parse(text = x)) +
+    labs(
+      x = "Change in Type I error",
+      y = NULL
+    ) +
+    fig_theme(legend = "none") +
+    theme(panel.grid.major.y = element_blank())
+}
+```
+
+\newpage
+
+```{r fig-s-historical-drift}
+#| fig-cap: "Sensitivity to historical-benchmark drift under no treatment effect. The design continues to test against $p_0=0.23$ while the observed trial ORR equals an actual untreated response rate varying from 0.19 to 0.27. The vertical long-dashed line is the design benchmark; the horizontal dotted line is 5%. Values to the right of the benchmark are positive-decision probabilities under benchmark misspecification, not Type I error under the formal null. All values are from exact enumeration."
+#| fig-height: 4.6
+#| out-width: "100%"
+
+historical_colors <- c(
+  "Fixed-N z" = COL_FIXED,
+  "CP + z" = COL_BLUE,
+  "CP + exact final" = COL_GOLD,
+  "PP + posterior" = "#6A3D9A"
+)
+
+historical_drift_results |>
+  ggplot(aes(p_actual, positive_probability, color = Design,
+             shape = Design)) +
+  geom_hline(yintercept = alpha, color = COL_ALPHA,
+             linetype = "dotted", linewidth = 0.65) +
+  geom_vline(xintercept = p0, color = COL_FIXED,
+             linetype = "longdash", linewidth = 0.65) +
+  geom_line(linewidth = 0.95) +
+  geom_point(size = 2.6, stroke = 0.9, fill = "white") +
+  scale_color_manual(values = historical_colors) +
+  scale_shape_manual(values = c(16, 17, 15, 18)) +
+  scale_x_continuous(breaks = sort(unique(historical_drift_results$p_actual))) +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  labs(
+    x = "Actual untreated response rate",
+    y = "Probability of a positive decision",
+    color = NULL,
+    shape = NULL
+  ) +
+  fig_theme(legend = "bottom")
+```
+
+\newpage
+
+```{r fig-s-exact-final}
+#| fig-cap: "Exact Type I error (left) and power at $p_1$ (right) after changing only the final decision rule. Both series use the identical estimated-effect CP adaptation mapping. The red dotted line is nominal $\\alpha=0.05$."
+#| fig-height: 4.5
+
+ef_t1e <- exact_final_sweep |>
+  select(cp_lower, `score-z final` = z_t1e,
+         `Exact-binomial final` = exact_t1e) |>
+  pivot_longer(-cp_lower, names_to = "Final rule", values_to = "value")
+ef_power <- exact_final_sweep |>
+  select(cp_lower, `score-z final` = z_power,
+         `Exact-binomial final` = exact_power) |>
+  pivot_longer(-cp_lower, names_to = "Final rule", values_to = "value")
+ef_colors <- c("score-z final" = COL_GOLD,
+               "Exact-binomial final" = COL_BLUE)
+ef_lines <- c("score-z final" = "solid",
+              "Exact-binomial final" = "longdash")
+
+p_ef_t1e <- ef_t1e |>
+  ggplot(aes(cp_lower, value, color = `Final rule`,
+             linetype = `Final rule`)) +
+  geom_hline(yintercept = alpha, color = COL_ALPHA,
+             linetype = "dotted", linewidth = 0.6) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2.5) +
+  scale_color_manual(values = ef_colors) +
+  scale_linetype_manual(values = ef_lines) +
+  scale_x_continuous(breaks = seq(0.30, 0.80, by = 0.10)) +
+  scale_y_continuous(labels = percent_format(accuracy = 0.1)) +
+  labs(x = TeX("$\\textrm{CP}_L$"), y = "Exact Type I error") +
+  fig_theme(legend = "bottom")
+
+p_ef_power <- ef_power |>
+  ggplot(aes(cp_lower, value, color = `Final rule`,
+             linetype = `Final rule`)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2.5) +
+  scale_color_manual(values = ef_colors) +
+  scale_linetype_manual(values = ef_lines) +
+  scale_x_continuous(breaks = seq(0.30, 0.80, by = 0.10)) +
+  scale_y_continuous(labels = percent_format(accuracy = 1)) +
+  labs(x = TeX("$\\textrm{CP}_L$"), y = TeX("Exact power at $p_1$")) +
+  fig_theme(legend = "bottom")
+
+(p_ef_t1e + p_ef_power + plot_layout(guides = "collect")) &
+  theme(legend.position = "bottom", legend.title = element_blank())
+```
+
+# References
+
+:::{#refs}
+:::
