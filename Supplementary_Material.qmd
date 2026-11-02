@@ -4,7 +4,6 @@ subtitle: "Final Critical-Count Calibration in Single-Arm Binary Promising-Zone 
 # No author block. The supplement is identical for the anonymous and
 # with-author submissions, so it carries no author information at all rather
 # than an "anonymized" placeholder that would read as a review artifact.
-date: today
 format:
   pdf:
     documentclass: scrartcl
@@ -121,6 +120,9 @@ estimation_sensitivity <- D$estimation_sensitivity
 critical_count_summary <- D$critical_count_summary
 comb_results           <- D$comb_results
 coherent_pp_z_t1e      <- D$coherent_pp_z_t1e
+coherent_pp_z_t1e_efficacy <- D$coherent_pp_z_t1e_efficacy
+seeded_mc_results       <- D$seeded_mc_results
+independent_validation_results <- D$independent_validation_results
 section4_source_summary <- D$section4_source_summary
 gamma_fin_selected    <- D$gamma_fin_selected
 scen_label_tbl        <- D$scen_label_tbl
@@ -144,10 +146,10 @@ fixed_final_rule_contrast <- with(
 
 This document contains supplementary tables and figures referenced in
 *Final Critical-Count Calibration in Single-Arm Binary Promising-Zone
-Designs*. Every value is an exact enumeration of the joint
-interim-and-final binomial distribution, computed by the same code that
-produces the main article; no result here relies on Monte Carlo
-estimation. The material is supporting detail: the article's claims are
+Designs*. Except for the explicitly labeled seeded-validation table, every
+operating characteristic is an exact enumeration of the joint interim-and-final
+binomial distribution, computed by the same code that produces the main
+article. The material is supporting detail: the article's claims are
 established in the main text, and these items supply fuller operating
 characteristics and robustness checks.
 
@@ -177,7 +179,7 @@ cp_sweep |>
   filter(round(cp_lower, 4) %in% round(selected_pl, 4)) |>
   left_join(scen_label_tbl, by = "p_true") |>
   mutate(
-    `CP group`      = sprintf("CP_L = %.2f", cp_lower),
+    `CP group`      = sprintf("Promising lower bound = %.2f", cp_lower),
     `True ORR`      = percent(p_true, accuracy = 1),
     Label = recode(
       Label,
@@ -230,7 +232,7 @@ cp_sweep |>
     locations = cells_body(rows = `True ORR` == "35%")
   ) |>
   tab_footnote(
-    "Power / T1E column: at p = p0 this is the exact Type I error; target <= 5.0%.",
+    "Power / T1E column: at the null response rate this is the exact Type I error; target at most 5.0%.",
     locations = cells_column_labels(columns = `Power / T1E`)
   ) |>
   tab_style(
@@ -242,7 +244,10 @@ cp_sweep |>
   # then emits no font-size statement at all and the table sets at full body
   # size -- the cause of the S1/S2 page overflow. px(10) = 7.5pt.
   tab_options(table.width = pct(100), table.font.size = px(9),
-              row_group.font.weight = "bold")
+              row_group.font.weight = "bold") |>
+  tab_source_note(
+    "Pink rows are null operating characteristics; green rows are operating characteristics at the design alternative."
+  )
 ```
 
 ```{r tbl-s-bayes-oc}
@@ -253,7 +258,7 @@ bayes_sweep |>
   filter(round(gamma_fin, 4) %in% round(selected_gf, 4)) |>
   left_join(scen_label_tbl, by = "p_true") |>
   mutate(
-    `gamma group`   = sprintf("gamma_final = %.3f", gamma_fin),
+    `gamma group`   = sprintf("Final posterior threshold = %.3f", gamma_fin),
     `True ORR`      = percent(p_true, accuracy = 1),
     Label = recode(
       Label,
@@ -307,7 +312,7 @@ bayes_sweep |>
     locations = cells_body(rows = `True ORR` == "35%")
   ) |>
   tab_footnote(
-    "Power / T1E at p = p0 is the exact Type I error; target <= 5.0%.",
+    "Power / T1E at the null response rate is the exact Type I error; target at most 5.0%.",
     locations = cells_column_labels(columns = `Power / T1E`)
   ) |>
   tab_style(
@@ -317,7 +322,10 @@ bayes_sweep |>
   # px(9) = 6.75pt. One column wider than S1, so a step smaller. See the note
   # on the S1 chunk above for why LaTeX size keywords cannot be used here.
   tab_options(table.width = pct(100), table.font.size = px(9),
-              row_group.font.weight = "bold")
+              row_group.font.weight = "bold") |>
+  tab_source_note(
+    "Pink rows are null operating characteristics; green rows are operating characteristics at the design alternative."
+  )
 ```
 
 ```{r tbl-s-factorial}
@@ -429,7 +437,7 @@ interim_timing_cp_summary |>
   ) |>
   gt() |>
   cols_label(
-    `E[N]` = md("$E[N]$"),
+    `E[N]` = md("$E[N]$ under $p_0$"),
     `Pr(Fut)` = md("$\\Pr(\\mathrm{fut})$"),
     `Pr(Increase)` = md("$\\Pr(\\mathrm{increase})$")
   ) |>
@@ -459,7 +467,7 @@ interim_timing_pp_calibrated |>
   gt() |>
   cols_label(
     `gamma_final` = md("$\\gamma_\\mathrm{final}$"),
-    `E[N]` = md("$E[N]$"),
+    `E[N]` = md("$E[N]$ under $p_0$"),
     `Pr(Eff)` = md("$\\Pr(\\mathrm{eff})$"),
     `Pr(Fut)` = md("$\\Pr(\\mathrm{fut})$"),
     `Pr(Increase)` = md("$\\Pr(\\mathrm{increase})$"),
@@ -523,7 +531,7 @@ two_look_cp_summary |>
   ) |>
   gt() |>
   cols_label(
-    `E[N]` = md("$E[N]$"),
+    `E[N]` = md("$E[N]$ under $p_0$"),
     `Pr(Fut)` = md("$\\Pr(\\mathrm{fut})$"),
     `Pr(Increase)` = md("$\\Pr(\\mathrm{increase})$")
   ) |>
@@ -631,8 +639,10 @@ nf_prob_s |>
 
 fixed_n_comparison |>
   transmute(
-    Setting = glue("p0={sprintf('%.2f', p0)}, p1={sprintf('%.2f', p1)}{if_else(str_detect(label, 'base'), ' (base)', '')}"),
+    Setting = glue("$p_0={sprintf('%.2f', p0)}$, $p_1={sprintf('%.2f', p1)}${if_else(str_detect(label, 'base'), ' (base)', '')}"),
+    `Interim N` = n_int,
     `N init` = n_init,
+    `N max` = n_max,
     `z critical` = z_crit,
     `Exact critical` = exact_crit,
     `z T1E` = percent(z_t1e, accuracy = 0.01),
@@ -641,8 +651,13 @@ fixed_n_comparison |>
     `Exact power` = percent(exact_power, accuracy = 0.01)
   ) |>
   gt() |>
-  cols_label(`N init` = md("$N_\\mathrm{init}$")) |>
-  tab_source_note("One-sided nominal alpha = 5%; exact enumeration.") |>
+  fmt_markdown(columns = Setting) |>
+  cols_label(
+    `Interim N` = md("$n_\\mathrm{int}$"),
+    `N init` = md("$N_\\mathrm{init}$"),
+    `N max` = md("$N_\\mathrm{max}$")
+  ) |>
+  tab_source_note("One-sided nominal level 5%; exact enumeration.") |>
   tab_style(style = cell_text(weight = "bold"),
             locations = cells_column_labels()) |>
   tab_options(table.width = pct(100), table.font.size = px(8))
@@ -683,15 +698,21 @@ lfn_summary |>
     `At boundary` = md("At $p_0$")
   ) |>
   tab_source_note(
-    "Monotone indicates a nondecreasing rejection probability over the evaluated null grid; this is a numerical check, not a proof."
+    glue(
+      "CP and combination designs use a promising lower bound of 0.50; ",
+      "the PP design uses final posterior threshold ",
+      "{sprintf('%.3f', gamma_fin_selected)}. Monotone indicates a ",
+      "nondecreasing rejection probability over the evaluated null grid; ",
+      "this is a numerical check, not a proof."
+    )
   ) |>
   tab_style(style = cell_text(weight = "bold"),
             locations = cells_column_labels())
 ```
 
-Tables S17--S20 provide direct source rows for the critical-count summaries,
-combination-test sweep, coherent PP-$z$ check, and remaining full-grid
-summary claims quoted in Section 4.
+Tables S17--S22 provide direct source rows for the critical-count summaries,
+combination-test sweep, coherent PP-$z$ check, remaining full-grid summary
+claims, and both computational validation exercises.
 
 ```{r tbl-s-critical-count-summary}
 #| tbl-cap: "Critical-count summary over the diagnostic candidate range $N=n_\\mathrm{int},\\ldots,N_\\mathrm{max}$ and the planned-or-larger final-analysis range $N=N_\\mathrm{init},\\ldots,N_\\mathrm{max}$ in the base design."
@@ -717,7 +738,7 @@ critical_count_summary |>
 
 comb_results |>
   transmute(
-    `CP group` = sprintf("CP_L = %.2f", cp_lower),
+    `CP group` = sprintf("Promising lower bound = %.2f", cp_lower),
     cp_lower,
     Method = recode(pval,
                     exact = "Exact stagewise p-values",
@@ -743,12 +764,15 @@ comb_results |>
 #| tbl-cap: "Coherent PP-$z$ check in the base design. Predictive probability is recalculated against the score-$z$ final boundary rather than against the posterior boundary."
 
 tibble(
-  Design = "PP-triggered mapping + score-z final",
-  `Type I error` = percent(coherent_pp_z_t1e, accuracy = 0.01)
+  `Interim efficacy` = c("Disabled", "Enabled at 0.99"),
+  `Type I error` = percent(
+    c(coherent_pp_z_t1e, coherent_pp_z_t1e_efficacy),
+    accuracy = 0.01
+  )
 ) |>
   gt() |>
   tab_source_note(
-    "Both the adaptation mapping and final rule differ from the posterior-target PP design; exact enumeration."
+    "Both the adaptation mapping and final rule differ from the posterior-target PP design; exact enumeration. The factorial comparison uses the efficacy-disabled row."
   ) |>
   tab_style(style = cell_text(weight = "bold"),
             locations = cells_column_labels())
@@ -764,6 +788,56 @@ section4_source_summary |>
             locations = cells_column_labels()) |>
   tab_options(table.width = pct(100), table.font.size = px(9),
               row_group.font.weight = "bold")
+```
+
+```{r tbl-s-seeded-validation}
+#| tbl-cap: "Seeded Monte Carlo cross-check of two exact null operating characteristics. The stochastic estimates validate the exact engine and are not used for any headline result."
+
+seeded_mc_results |>
+  transmute(
+    Design,
+    Exact = percent(exact, accuracy = 0.01),
+    `Monte Carlo` = percent(simulated, accuracy = 0.01),
+    MCSE = percent(mcse, accuracy = 0.01),
+    `Standardized difference` = sprintf("%+.2f", standardized_difference),
+    Replicates = scales::comma(n_sim),
+    Seed = seed
+  ) |>
+  gt() |>
+  tab_source_note(
+    "The standardized difference is (Monte Carlo minus exact) divided by the binomial Monte Carlo standard error."
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(9))
+```
+
+```{r tbl-s-independent-validation}
+#| tbl-cap: "Independent base-R reproduction of six selected operating characteristics. The validation implementation shares neither decision helpers nor parameter sources with the manuscript engine."
+
+independent_validation_results |>
+  mutate(
+    Estimand = recode(
+      Estimand,
+      fixed_z_t1e = "Fixed-N score-z T1E",
+      cp_z_t1e = "CP + score-z T1E",
+      cp_z_power = "CP + score-z power",
+      cp_exact_t1e = "CP + exact-final T1E",
+      pp_posterior_t1e = "PP + posterior T1E",
+      pp_posterior_power = "PP + posterior power"
+    ),
+    Independent = sprintf("%.12f", Independent),
+    Manuscript = sprintf("%.12f", Manuscript),
+    `Absolute difference` = format(`Absolute difference`, scientific = TRUE,
+                                   digits = 2)
+  ) |>
+  gt() |>
+  tab_source_note(
+    "All absolute differences are below 1e-12; the independent script also verifies the planned fixed-N score-z and exact-binomial critical counts."
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(9))
 ```
 
 \FloatBarrier
@@ -798,7 +872,7 @@ after changing only the final decision rule while holding the CP adaptation
 mapping fixed. Exact values appear in Table S15.
 
 ```{r fig-s-pp-generalizability}
-#| fig-cap: "Exact Bayesian predictive-probability Type I error across the same five design configurations, sweeping $\\gamma_\\text{final}$ with the prior, interim efficacy threshold and predictive-probability zone boundaries held fixed. The red dotted line is nominal $\\alpha = 0.05$; the vertical long-dashed line marks the smallest evaluated $\\gamma_\\text{final}$ that controls Type I error in each configuration. Panels in which no evaluated threshold controls the level carry no vertical line."
+#| fig-cap: "Exact Bayesian predictive-probability Type I error across the same five design configurations, sweeping $\\gamma_\\text{final}$ with the prior, interim efficacy threshold and predictive-probability zone boundaries held fixed. The red dotted line is nominal $\\alpha = 0.05$; the vertical long-dashed line marks the smallest evaluated $\\gamma_\\text{final}$ that controls Type I error in each configuration. Evaluated-grid points are connected for readability; the underlying finite-sample functions are stepwise."
 #| fig-height: 7.2
 pp_control_thresholds <- gen_pp_results |>
   filter(power <= alpha) |>

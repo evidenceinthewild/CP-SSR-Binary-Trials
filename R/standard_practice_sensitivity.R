@@ -305,19 +305,12 @@ estimation_sensitivity <- purrr::map_dfr(c(p0, p1), function(p_true) {
 })
 
 # -----------------------------------------------------------------------------
-# Seeded stochastic validation, run only from the command line
+# Seeded stochastic validation
 # -----------------------------------------------------------------------------
 
-.script_file_sp <- sub(
-  "^--file=",
-  "",
-  grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
-)
-
-if (length(.script_file_sp) == 1L &&
-    basename(.script_file_sp) == "standard_practice_sensitivity.R") {
-  n_sim <- as.integer(Sys.getenv("CP_SSR_MC_N", unset = "25000"))
-  set.seed(20260812)
+seeded_mc_validation <- function(n_sim = 25000L, seed = 20260812L) {
+  n_sim <- as.integer(n_sim)
+  set.seed(seed)
 
   exact_cp <- cp_oc_exact(
     p0, 0.50, cp_upper = cp_upper, cp_futility = cp_futility,
@@ -349,7 +342,9 @@ if (length(.script_file_sp) == 1L &&
   validation <- tibble::tibble(
     Design = c("CP + z", "PP + posterior"),
     exact = c(exact_cp, exact_pp),
-    simulated = c(sim_cp, sim_pp)
+    simulated = c(sim_cp, sim_pp),
+    n_sim = n_sim,
+    seed = seed
   ) |>
     dplyr::mutate(
       mcse = sqrt(exact * (1 - exact) / n_sim),
@@ -357,6 +352,19 @@ if (length(.script_file_sp) == 1L &&
     )
 
   stopifnot(all(abs(validation$standardized_difference) <= 4))
+  validation
+}
+
+.script_file_sp <- sub(
+  "^--file=",
+  "",
+  grep("^--file=", commandArgs(trailingOnly = FALSE), value = TRUE)
+)
+
+if (length(.script_file_sp) == 1L &&
+    basename(.script_file_sp) == "standard_practice_sensitivity.R") {
+  n_sim <- as.integer(Sys.getenv("CP_SSR_MC_N", unset = "25000"))
+  validation <- seeded_mc_validation(n_sim = n_sim)
   cat("Seeded Monte Carlo cross-check (n =", n_sim, ")\n")
   print(validation, n = Inf, width = Inf)
   cat("\nContinuity-corrected score-z range across timings:\n")

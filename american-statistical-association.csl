@@ -124,7 +124,7 @@
       <else-if type="webpage">
         <group>
           <text term="available at" text-case="capitalize-first"/>
-          <text variable="URL"/>
+          <text variable="URL" prefix=" "/>
         </group>
       </else-if>
     </choose>

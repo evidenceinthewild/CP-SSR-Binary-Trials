@@ -1,8 +1,8 @@
 # R/analysis.R
 # ----------------------------------------------------------------------------
 # Helper functions for the manuscript:
-#   "Final-Analysis Discreteness Drives Type I Error Miscalibration in
-#    Single-Arm Binary Promising-Zone Designs"
+#   "Final Critical-Count Calibration in Single-Arm Binary
+#    Promising-Zone Designs"
 #
 # This file is sourced from CP_PromisingZone_SSR_TypeIError.qmd. It defines:
 #   - critical-count helpers: x_crit_fn, x_crit_z_fn, x_crit_exact_fn

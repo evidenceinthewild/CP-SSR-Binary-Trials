@@ -46,7 +46,7 @@ interim_timing_grid <- tibble::tibble(
   dplyr::mutate(
     information_fraction = n_int_timing / n_init,
     timing_label = sprintf(
-      "%d%% (n=%d)",
+      "%d%% (interim N = %d)",
       round(100 * information_fraction),
       n_int_timing
     )

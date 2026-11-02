@@ -31,8 +31,8 @@ if (!exists("PRIMARY_CP_MODE", inherits = TRUE)) {
 
 two_look_schedules <- tibble::tribble(
   ~schedule, ~n_look_1, ~n_look_2,
-  "40% and 65% (n=34, 55)", 34L, 55L,
-  "50% and 77% (n=42, 65)", 42L, 65L
+  "40% and 65% (interim N = 34, 55)", 34L, 55L,
+  "50% and 77% (interim N = 42, 65)", 42L, 65L
 )
 
 .cp_target_tl <- function(x, n_seen, current_target,

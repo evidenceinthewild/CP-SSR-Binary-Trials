@@ -16,8 +16,7 @@
 *.tex
 figure/
 
-# Rendered outputs. The submission PDFs live outside this repository, in
-# ../Submission_SBR-26-068/.
+# Rendered outputs. Submission PDFs live in a separate sibling directory.
 *.pdf
 *.html
 
@@ -32,27 +31,16 @@ session-info.txt
 # This repository is mirrored by anonymous.4open.science, so anything
 # committed here is visible to referees.
 #
-# CONVENTION: the tracked path CP_PromisingZone_SSR_TypeIError.qmd carries
-# the ANONYMIZED content. The local working copy at that same path is the
-# with-author source, so the file reads as permanently "modified" in
-# `git status`. That is expected and must stay that way until acceptance.
+# CONVENTION: the tracked path CP_PromisingZone_SSR_TypeIError.qmd contains
+# the ANONYMIZED manuscript. The with-author source is maintained locally at
+# CP_PromisingZone_SSR_TypeIError_author.qmd and is never committed during
+# blinded review. R/make_anon.R regenerates the tracked anonymous source.
 #
-# WARNING: `git add CP_PromisingZone_SSR_TypeIError.qmd` (or `git add -A`,
-# or `git commit -a`) stages the with-author copy and deanonymizes the
-# repository. .gitignore cannot prevent this, because the path is tracked.
-# To update the committed manuscript, regenerate the anonymized copy and
-# stage it without touching the working tree:
-#
-#     Rscript R/make_anon.R
-#     git update-index --cacheinfo 100644,\
-#       $(git hash-object -w CP_PromisingZone_SSR_TypeIError_anon.qmd),\
-#       CP_PromisingZone_SSR_TypeIError.qmd
-#
-# After acceptance, commit the with-author source directly and delete this
-# block along with the two entries below.
+# After acceptance, replace the tracked source with the author version and
+# remove this block and the local-only anonymization files.
+CP_PromisingZone_SSR_TypeIError_author.qmd
 
-# Generated anonymized copy: an intermediate, staged into the path above
-# rather than committed under its own name.
+# Legacy generated filename from the earlier anonymization workflow.
 CP_PromisingZone_SSR_TypeIError_anon.qmd
 
 # The anonymization script itself names the authors, the organisation and
