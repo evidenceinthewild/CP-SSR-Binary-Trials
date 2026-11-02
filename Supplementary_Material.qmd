@@ -22,6 +22,7 @@ format:
     fig-format: png
     fig-dpi: 200
     fig-pos: "H"
+    tbl-pos: "H"
     fig-cap-location: bottom
     tbl-cap-location: top
     keep-tex: true
@@ -32,6 +33,7 @@ format:
         \usepackage{booktabs}
         \usepackage{longtable}
         \usepackage{array}
+        \usepackage{placeins}
         % The wide OC tables (S1, S2) carry 9-10 columns. Default \tabcolsep
         % (6pt each side) spends ~1.4in of the 6.5in text block on padding
         % alone; 3pt keeps them inside the margins with room to spare.
@@ -116,6 +118,10 @@ pp_fine_calibration   <- D$pp_fine_calibration
 pp_fine_selected      <- D$pp_fine_selected
 historical_drift_results <- D$historical_drift_results
 estimation_sensitivity <- D$estimation_sensitivity
+critical_count_summary <- D$critical_count_summary
+comb_results           <- D$comb_results
+coherent_pp_z_t1e      <- D$coherent_pp_z_t1e
+section4_source_summary <- D$section4_source_summary
 gamma_fin_selected    <- D$gamma_fin_selected
 scen_label_tbl        <- D$scen_label_tbl
 
@@ -171,35 +177,49 @@ cp_sweep |>
   filter(round(cp_lower, 4) %in% round(selected_pl, 4)) |>
   left_join(scen_label_tbl, by = "p_true") |>
   mutate(
-    `CP_L`          = round(cp_lower, 2),
+    `CP group`      = sprintf("CP_L = %.2f", cp_lower),
     `True ORR`      = percent(p_true, accuracy = 1),
-    `Power / T1E`   = percent(power,   accuracy = 0.1),
+    Label = recode(
+      Label,
+      "p0" = "$p_0$",
+      "p0 + 0.25 delta" = "$p_0 + 0.25\\Delta$",
+      "p0 + 0.50 delta" = "$p_0 + 0.50\\Delta$",
+      "p0 + 0.75 delta" = "$p_0 + 0.75\\Delta$",
+      "p1" = "$p_1$",
+      "p1 + 0.25 delta" = "$p_1 + 0.25\\Delta$"
+    ),
+    `Power / T1E`   = percent(power,   accuracy = 0.01),
     `E[N]`          = round(exp_n, 1),
-    `Pr(Fut)`       = percent(pr_fut,  accuracy = 1),
-    `Pr(Prom)`      = percent(pr_prom, accuracy = 1),
-    `Pr(Fav)`       = percent(pr_fav,  accuracy = 1),
-    `Pr(Cap)`       = percent(pr_cap,  accuracy = 1),
+    `Pr(Fut)`       = percent(pr_fut,  accuracy = 0.1),
+    `Pr(Unfav)`     = percent(pr_unf,  accuracy = 0.1),
+    `Pr(Increase)`  = percent(pr_prom, accuracy = 0.1),
+    `Pr(Fav)`       = percent(pr_fav,  accuracy = 0.1),
+    `Pr(Cap)`       = percent(pr_cap,  accuracy = 0.1),
     `N pct`         = paste0(n_p10, "/", n_p50, "/", n_p90)
   ) |>
-  arrange(`CP_L`, p_true) |>
-  select(`CP_L`, `True ORR`, Label, `Power / T1E`, `E[N]`,
-         `Pr(Fut)`, `Pr(Prom)`, `Pr(Fav)`, `Pr(Cap)`, `N pct`) |>
-  gt(groupname_col = "CP_L") |>
+  arrange(cp_lower, p_true) |>
+  select(`CP group`, `True ORR`, Label, `Power / T1E`, `E[N]`,
+         `Pr(Fut)`, `Pr(Unfav)`, `Pr(Increase)`, `Pr(Fav)`, `Pr(Cap)`, `N pct`) |>
+  gt(groupname_col = "CP group") |>
+  fmt_markdown(columns = Label) |>
   cols_label(
     `True ORR`    = md("True ORR"),
     `Power / T1E` = md("Power / T1E"),
     `E[N]`        = md("$E[N]$"),
     `Pr(Fut)`     = md("$\\Pr(\\text{fut})$"),
-    `Pr(Prom)`    = md("$\\Pr(\\text{prom})$"),
+    `Pr(Unfav)`   = md("$\\Pr(\\text{unfav})$"),
+    `Pr(Increase)` = md("$\\Pr(\\text{increase})$"),
     `Pr(Fav)`     = md("$\\Pr(\\text{fav})$"),
     `Pr(Cap)`     = md("$\\Pr(\\text{cap})$"),
     `N pct`       = md("$N$ p10/p50/p90")
   ) |>
   tab_source_note(md(glue(
-    "Design: $\\text{{CP}}_\\text{{upper}} = {cp_upper}$ · ",
+    "Design: $\\mathrm{{CP}}_U = {cp_upper}$ · ",
     "$\\text{{CP}}_\\text{{fut}} = {cp_futility}$ · ",
-    "$n_\\text{{int}} = {n_int}$ · $N_\\text{{max}} = {n_max}$ · ",
-    "exact enumeration."
+    "$n_\\text{{int}} = {n_int}$ · $N_\\text{{init}} = {n_init}$ · ",
+    "$N_\\text{{max}} = {n_max}$ · $p_0 = {p0}$ · $p_1 = {p1}$ · ",
+    "$\\alpha = {alpha}$ · exact enumeration. The promising zone is the ",
+    "sample-size-increase zone reported as $\\Pr(\\text{{increase}})$."
   ))) |>
   tab_style(
     style    = list(cell_fill(color = "#F8D7DA"), cell_text(weight = "bold")),
@@ -221,7 +241,7 @@ cp_sweep |>
   # ("scriptsize", "tiny") are silently ignored by gt's LaTeX backend, which
   # then emits no font-size statement at all and the table sets at full body
   # size -- the cause of the S1/S2 page overflow. px(10) = 7.5pt.
-  tab_options(table.width = pct(100), table.font.size = px(10),
+  tab_options(table.width = pct(100), table.font.size = px(9),
               row_group.font.weight = "bold")
 ```
 
@@ -233,37 +253,50 @@ bayes_sweep |>
   filter(round(gamma_fin, 4) %in% round(selected_gf, 4)) |>
   left_join(scen_label_tbl, by = "p_true") |>
   mutate(
-    `gamma_final`   = round(gamma_fin, 3),
+    `gamma group`   = sprintf("gamma_final = %.3f", gamma_fin),
     `True ORR`      = percent(p_true, accuracy = 1),
-    `Power / T1E`   = percent(power,   accuracy = 0.1),
+    Label = recode(
+      Label,
+      "p0" = "$p_0$",
+      "p0 + 0.25 delta" = "$p_0 + 0.25\\Delta$",
+      "p0 + 0.50 delta" = "$p_0 + 0.50\\Delta$",
+      "p0 + 0.75 delta" = "$p_0 + 0.75\\Delta$",
+      "p1" = "$p_1$",
+      "p1 + 0.25 delta" = "$p_1 + 0.25\\Delta$"
+    ),
+    `Power / T1E`   = percent(power,   accuracy = 0.01),
     `E[N]`          = round(exp_n, 1),
-    `Pr(Eff)`       = percent(pr_eff,  accuracy = 1),
-    `Pr(Fut)`       = percent(pr_fut,  accuracy = 1),
-    `Pr(Prom)`      = percent(pr_prom, accuracy = 1),
-    `Pr(Fav)`       = percent(pr_fav,  accuracy = 1),
-    `Pr(Cap)`       = percent(pr_cap,  accuracy = 1),
+    `Pr(Eff)`       = percent(pr_eff,  accuracy = 0.1),
+    `Pr(Fut)`       = percent(pr_fut,  accuracy = 0.1),
+    `Pr(Increase)`  = percent(pr_prom, accuracy = 0.1),
+    `Pr(Fav)`       = percent(pr_fav,  accuracy = 0.1),
+    `Pr(Cap)`       = percent(pr_cap,  accuracy = 0.1),
     `N pct`         = paste0(n_p10, "/", n_p50, "/", n_p90)
   ) |>
-  arrange(gamma_final, p_true) |>
-  select(`gamma_final`, `True ORR`, Label, `Power / T1E`, `E[N]`,
-         `Pr(Eff)`, `Pr(Fut)`, `Pr(Prom)`, `Pr(Fav)`, `Pr(Cap)`, `N pct`) |>
-  gt(groupname_col = "gamma_final") |>
+  arrange(gamma_fin, p_true) |>
+  select(`gamma group`, `True ORR`, Label, `Power / T1E`, `E[N]`,
+         `Pr(Eff)`, `Pr(Fut)`, `Pr(Increase)`, `Pr(Fav)`, `Pr(Cap)`, `N pct`) |>
+  gt(groupname_col = "gamma group") |>
+  fmt_markdown(columns = Label) |>
   cols_label(
     `True ORR`    = md("True ORR"),
     `Power / T1E` = md("Power / T1E"),
     `E[N]`        = md("$E[N]$"),
     `Pr(Eff)`     = md("$\\Pr(\\text{eff})$"),
     `Pr(Fut)`     = md("$\\Pr(\\text{fut})$"),
-    `Pr(Prom)`    = md("$\\Pr(\\text{prom})$"),
+    `Pr(Increase)` = md("$\\Pr(\\text{increase})$"),
     `Pr(Fav)`     = md("$\\Pr(\\text{fav})$"),
     `Pr(Cap)`     = md("$\\Pr(\\text{cap})$"),
     `N pct`       = md("$N$ p10/p50/p90")
   ) |>
   tab_source_note(md(glue(
     "Design: $\\gamma_\\text{{int}} = {gamma_int}$ · ",
-    "$\\text{{PP}}_\\text{{upper}} = 0.50$ · ",
-    "$n_\\text{{int}} = {n_int}$ · $N_\\text{{max}} = {n_max}$ · ",
-    "Prior $\\text{{Beta}}({ap},{bp})$ · exact enumeration."
+    "$\\mathrm{{PP}}_U = 0.50$ · ",
+    "$n_\\text{{int}} = {n_int}$ · $N_\\text{{init}} = {n_init}$ · ",
+    "$N_\\text{{max}} = {n_max}$ · $p_0 = {p0}$ · $p_1 = {p1}$ · ",
+    "$\\alpha = {alpha}$ · Prior $\\text{{Beta}}({ap},{bp})$ · ",
+    "exact enumeration. The promising zone is the sample-size-increase ",
+    "zone reported as $\\Pr(\\text{{increase}})$."
   ))) |>
   tab_style(
     style    = list(cell_fill(color = "#F8D7DA"), cell_text(weight = "bold")),
@@ -307,6 +340,7 @@ factorial_results |>
             locations = cells_column_labels())
 ```
 
+\FloatBarrier
 
 # Robustness and sensitivity checks
 
@@ -388,7 +422,7 @@ interim_timing_cp_summary |>
     `Exact power` = percent(exact_power, accuracy = 0.01),
     `E[N]` = round(exp_n_null, 1),
     `Pr(Fut)` = percent(pr_fut_null, accuracy = 0.1),
-    `Pr(Prom)` = percent(pr_prom_null, accuracy = 0.1),
+    `Pr(Increase)` = percent(pr_prom_null, accuracy = 0.1),
     `Total delta` = sprintf("%+.2f", 100 * total_adaptation_delta),
     `Mapping delta` = sprintf("%+.2f", 100 * mapping_only_delta),
     `Final-rule delta` = sprintf("%+.2f", 100 * final_rule_delta)
@@ -397,10 +431,10 @@ interim_timing_cp_summary |>
   cols_label(
     `E[N]` = md("$E[N]$"),
     `Pr(Fut)` = md("$\\Pr(\\mathrm{fut})$"),
-    `Pr(Prom)` = md("$\\Pr(\\mathrm{prom})$")
+    `Pr(Increase)` = md("$\\Pr(\\mathrm{increase})$")
   ) |>
   tab_source_note(
-    "Exact enumeration. Delta columns are Type I error percentage points."
+    "Exact enumeration. Delta columns are calculated from unrounded probabilities and then rounded to Type I error percentage points; they can differ by 0.01 point from subtracting the displayed rounded percentages."
   ) |>
   tab_style(style = cell_text(weight = "bold"),
             locations = cells_column_labels()) |>
@@ -419,7 +453,7 @@ interim_timing_pp_calibrated |>
     `E[N]` = round(exp_n_null, 1),
     `Pr(Eff)` = percent(pr_eff_null, accuracy = 0.1),
     `Pr(Fut)` = percent(pr_fut_null, accuracy = 0.1),
-    `Pr(Prom)` = percent(pr_prom_null, accuracy = 0.1),
+    `Pr(Increase)` = percent(pr_prom_null, accuracy = 0.1),
     `Pr(Cap)` = percent(pr_cap_null, accuracy = 0.1)
   ) |>
   gt() |>
@@ -428,7 +462,7 @@ interim_timing_pp_calibrated |>
     `E[N]` = md("$E[N]$"),
     `Pr(Eff)` = md("$\\Pr(\\mathrm{eff})$"),
     `Pr(Fut)` = md("$\\Pr(\\mathrm{fut})$"),
-    `Pr(Prom)` = md("$\\Pr(\\mathrm{prom})$"),
+    `Pr(Increase)` = md("$\\Pr(\\mathrm{increase})$"),
     `Pr(Cap)` = md("$\\Pr(\\mathrm{cap})$")
   ) |>
   tab_source_note(
@@ -494,7 +528,7 @@ two_look_cp_summary |>
     `Pr(Increase)` = md("$\\Pr(\\mathrm{increase})$")
   ) |>
   tab_source_note(
-    "Exact enumeration. Delta columns are Type I error percentage points."
+    "Exact enumeration. Delta columns are calculated from unrounded probabilities and then rounded to Type I error percentage points; they can differ by 0.01 point from subtracting the displayed rounded percentages."
   ) |>
   tab_style(style = cell_text(weight = "bold"),
             locations = cells_column_labels()) |>
@@ -583,6 +617,9 @@ nf_prob_s |>
   left_join(nf_en_s, by = c("Design", "Futility")) |>
   gt(groupname_col = "Design") |>
   cols_label(`E[N]` = md("$E[N]$ under $p_0$")) |>
+  tab_source_note(
+    "Exact enumeration. Contrasts quoted in the article are calculated from unrounded probabilities and then rounded to percentage points; they can differ by 0.01 point from subtracting the displayed rounded percentages."
+  ) |>
   tab_style(style = cell_text(weight = "bold"),
             locations = cells_column_labels())
 ```
@@ -652,7 +689,84 @@ lfn_summary |>
             locations = cells_column_labels())
 ```
 
-\clearpage
+Tables S17--S20 provide direct source rows for the critical-count summaries,
+combination-test sweep, coherent PP-$z$ check, and remaining full-grid
+summary claims quoted in Section 4.
+
+```{r tbl-s-critical-count-summary}
+#| tbl-cap: "Critical-count summary over the diagnostic candidate range $N=n_\\mathrm{int},\\ldots,N_\\mathrm{max}$ and the planned-or-larger final-analysis range $N=N_\\mathrm{init},\\ldots,N_\\mathrm{max}$ in the base design."
+
+critical_count_summary |>
+  transmute(
+    Range,
+    Comparison,
+    `Count / total` = paste0(Count, "/", Total),
+    Percentage = percent(Fraction, accuracy = 0.1)
+  ) |>
+  gt(groupname_col = "Range") |>
+  tab_source_note(
+    "The four rules are the uncorrected score-z, continuity-corrected score-z, exact-binomial, and calibrated posterior rules."
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(9))
+```
+
+```{r tbl-s-combination-grid}
+#| tbl-cap: "Exact operating characteristics of the inverse-normal combination-test comparators over the full promising-zone grid."
+
+comb_results |>
+  transmute(
+    `CP group` = sprintf("CP_L = %.2f", cp_lower),
+    cp_lower,
+    Method = recode(pval,
+                    exact = "Exact stagewise p-values",
+                    midp = "Mid-p stagewise values"),
+    Estimand = if_else(abs(p_true - p0) < 1e-12,
+                       "Type I error", "Power"),
+    Probability = percent(power, accuracy = 0.01)
+  ) |>
+  pivot_wider(names_from = Estimand, values_from = Probability) |>
+  arrange(cp_lower, Method) |>
+  select(-cp_lower) |>
+  gt(groupname_col = "CP group") |>
+  tab_source_note(
+    "Both variants use the same observed-effect CP adaptation mapping; exact enumeration."
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(9),
+              row_group.font.weight = "bold")
+```
+
+```{r tbl-s-coherent-pp-z}
+#| tbl-cap: "Coherent PP-$z$ check in the base design. Predictive probability is recalculated against the score-$z$ final boundary rather than against the posterior boundary."
+
+tibble(
+  Design = "PP-triggered mapping + score-z final",
+  `Type I error` = percent(coherent_pp_z_t1e, accuracy = 0.01)
+) |>
+  gt() |>
+  tab_source_note(
+    "Both the adaptation mapping and final rule differ from the posterior-target PP design; exact enumeration."
+  ) |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels())
+```
+
+```{r tbl-s-section4-source-summary}
+#| tbl-cap: "Direct source values for Section 4 summary claims not otherwise printed in full in Tables S1--S19. Contrasts are calculated from unrounded exact probabilities and then rounded to percentage points."
+
+section4_source_summary |>
+  gt(groupname_col = "Section") |>
+  cols_label(Quantity = "Quoted quantity", Value = "Exact source value") |>
+  tab_style(style = cell_text(weight = "bold"),
+            locations = cells_column_labels()) |>
+  tab_options(table.width = pct(100), table.font.size = px(9),
+              row_group.font.weight = "bold")
+```
+
+\FloatBarrier
 
 # Additional figures
 

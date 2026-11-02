@@ -1,29 +1,31 @@
 ---
 title: "Final Critical-Count Calibration in Single-Arm Binary Promising-Zone Designs"
 subtitle: "An Exact-Enumeration Study of Adaptation Mappings and Final Decision Rules"
-author: "Author(s) anonymized for peer review"
+author: "Lu Qian · [Zetyra](https://zetyra.com/) | [Evidence in the Wild](https://evidenceinthewild.com/)"
 date: today
 abstract: |
-  Promising-zone sample size re-estimation (SSR) is often paired with
-  a one-sided one-proportion z-test final analysis in single-arm
-  binary trials, by analogy with the Mehta-Pocock construction for
-  continuous endpoints. We evaluate this extension by exact enumeration
-  using conditional power under the observed interim response rate. In one
-  oncology configuration, the fixed-sample z-test has 5.80% Type I error;
-  conditional-power designs across the promising-zone grid have 5.55%-5.69%.
-  Changing only the fixed-sample final rule shifts the attained level by 2.32
-  percentage points, whereas the re-estimation mapping changes it by at most
-  0.12 points across one-look timings from 40%-77% information. In two
-  representative two-look schedules, the mapping contribution is at most
-  0.21 points, versus at least 1.41 points for the score-z versus exact-final
-  contrast. The uncorrected score-z critical count is never larger than the
-  exact-binomial count over reachable sample sizes, identifying normal
-  approximation as the operative mechanism. Exact-binomial finals control
-  Type I error at 3.42%-3.89%, with a 3.79-6.40-point power cost;
-  inverse-normal combination tests using exact stagewise p-values also
-  control at 3.32%-3.54%, while a mid-p variant reaches 5.52%. Designers
-  should prespecify the final decision rule and report exact operating
-  characteristics for the complete adaptive design.
+  Conditional-power promising-zone sample size re-estimation (SSR) is
+  commonly justified using asymptotically normal test statistics. In
+  single-arm Phase II trials with binary endpoints, modest sample sizes and
+  integer rejection boundaries can make a nominal one-proportion score-z
+  test materially miscalibrated before adaptation. We formulate an
+  exact-enumeration framework that maps each interim response count to
+  stopping, sample-size, and final rejection decisions, enabling
+  deterministic evaluation of complete one- and two-look designs. Across
+  the settings studied, calibration of the final score-z critical count
+  accounts for more of the departure from nominal Type I error than the
+  re-estimation mapping, whose contribution is smaller, sign-varying, and
+  sensitive to interim timing. Exact-binomial and exact stagewise
+  inverse-normal alternatives control Type I error but can be conservative
+  and lose power; mid-p improves power without the same finite-sample
+  guarantee. Bayesian predictive-probability designs can also be calibrated
+  by exact enumeration, but their adaptation and stopping rules differ and
+  must be evaluated as complete designs. Sensitivity analyses across
+  timings, repeated looks, and binary design settings preserve the
+  distinction between final-rule calibration and adaptation. Binary
+  promising-zone designs should therefore prespecify the final decision
+  rule and report exact operating characteristics whenever enumeration is
+  feasible.
 keywords: [adaptive design, sample size re-estimation, promising zone, combination test, normal approximation, Type I error]
 format:
   html:
@@ -310,17 +312,22 @@ control should be demonstrated, analytically where possible, otherwise via
 simulation.
 
 A practical question is how this framework transfers to single-arm binary
-endpoints. Both the interim statistic and the final rejection region are
-functions of integer response counts. A conventional one-proportion
-$z$-test therefore induces a design-specific integer critical count whose
-attained Type I error need not equal its nominal level. The combination-test
-principle itself does transfer: valid stagewise binomial $p$-values can be
-combined with weights fixed at the design stage. What does not transfer
-is calibration of the final $z$-test critical count, which is already
-inexact at the planned sample size and is not repaired by the adaptation.
+endpoints. Standard conditional-power SSR arguments rely on asymptotic
+normality of the test statistic. At the modest sample sizes common in Phase
+II oncology, however, both the interim statistic and final rejection region
+are functions of integer response counts, and the normal approximation may
+be inadequate. A conventional one-proportion $z$-test therefore induces a
+design-specific integer critical count whose attained Type I error need not
+equal its nominal level. The combination-test principle itself does
+transfer: valid stagewise binomial $p$-values can be combined with weights
+fixed at the design stage. What does not transfer automatically is
+calibration of the final $z$-test critical count, which can already be
+inexact at the planned sample size and is not repaired merely by adapting
+the sample size.
 
 We study a representative oncology design with $p_0=0.23$, $p_1=0.35$,
-one-sided $\alpha=0.05$, $N_0=84$, $n_1=65$, and $N_{\max}=200$. The
+one-sided $\alpha=0.05$, $N_\mathrm{init}=84$,
+$n_\mathrm{int}=65$, and $N_\mathrm{max}=200$. The
 final test is the null-variance score-form $z$ statistic without continuity
 correction. Conditional power is calculated under the response rate
 estimated at interim, as in the Mehta-Pocock promising-zone construction,
@@ -331,6 +338,16 @@ prespecified promising-zone grid the adaptive design ranges from
 `r percent(min(headline_cp_t1e), accuracy = 0.01)` to
 `r percent(max(headline_cp_t1e), accuracy = 0.01)`. Thus adaptation is not
 the primary cause of inflation in this setting.
+
+Our primary contribution is an exact finite-sample framework for binary
+promising-zone designs. For every reachable interim response count, it
+records the stopping action, selected total sample size, and final integer
+rejection boundary, then enumerates the resulting Type I error, power,
+expected sample size, and zone occupancy without Monte Carlo error. This
+framework separates final-rule calibration from the adaptation mapping,
+supports coherent exact-binomial and stagewise combination-test
+comparators, and extends directly to the bounded two-look schedules studied
+here.
 
 We compare fixed-$N$, conditional-power (CP), and Bayesian
 predictive-probability (PP) adaptation mappings under $z$ and posterior
@@ -522,18 +539,22 @@ implementations of these rules are defined in `R/analysis.R`.
 
 ## CP Promising Zone SSR
 
-At interim sample size $n_1$, let $x_1$ responses be observed and define
-$\widehat p_1=x_1/n_1$. For candidate total sample size $N$, conditional
+At interim sample size $n_\mathrm{int}$, let $x_\mathrm{int}$ responses be
+observed and define
+$\widehat p_\mathrm{int}=x_\mathrm{int}/n_\mathrm{int}$. For candidate total
+sample size $N$, conditional
 power is calculated under the observed response-rate estimate,
 
-$$\mathrm{CP}(x_1,n_1,N) =
-P\!\left\{X_2 \geq c_z(N,\alpha)-x_1
-\;\big|\; X_2 \sim \text{Bin}(N-n_1, \widehat p_1)\right\},$$
+$$\mathrm{CP}(x_\mathrm{int},n_\mathrm{int},N) =
+P\!\left\{X_\mathrm{rem} \geq c_z(N,\alpha)-x_\mathrm{int}
+\;\big|\; X_\mathrm{rem} \sim
+\text{Bin}(N-n_\mathrm{int}, \widehat p_\mathrm{int})\right\},$$
 
 where $c_z(N,\alpha)$ is the $z$-test critical count at sample size
 $N$ and the same one-sided $\alpha$ that the final analysis uses. The
-primary analysis uses the raw maximum-likelihood estimate $x_1/n_1$, with
-no shrinkage or bounding. At the extreme counts $x_1=0$ and $x_1=n_1$, the
+primary analysis uses the raw maximum-likelihood estimate
+$x_\mathrm{int}/n_\mathrm{int}$, with no shrinkage or bounding. At the
+extreme counts $x_\mathrm{int}=0$ and $x_\mathrm{int}=n_\mathrm{int}$, the
 remaining-response distribution is correspondingly degenerate at zero or
 one, so CP remains well-defined. The trial then proceeds according to
 
@@ -541,7 +562,7 @@ $$
 \text{Action} = \begin{cases}
 \text{Futility stop} & \text{if } \text{CP} < \text{CP}_\text{fut} \\
 \text{Unfavorable: continue to } N_\text{init} & \text{if } \text{CP}_\text{fut} \leq \text{CP} < \text{CP}_L \\
-\text{Promising: SSR to } N' \leq N_\text{max} & \text{if } \text{CP}_L \leq \text{CP} < \text{CP}_U \\
+\text{Promising: SSR to } N^*(x_\mathrm{int}) \leq N_\text{max} & \text{if } \text{CP}_L \leq \text{CP} < \text{CP}_U \\
 \text{Favorable: continue to } N_\text{init} & \text{if } \text{CP} \geq \text{CP}_U
 \end{cases}
 $$
@@ -571,15 +592,19 @@ $\gamma_\text{final}$:
 
 $$
 \text{PP}(x_\text{int}, n_\text{int}, N) =
-\sum_{x_r=0}^{N - n_\text{int}}
-\text{BetaBin}(x_r;\; n_r,\; a_\text{post},\; b_\text{post})
-\cdot \mathbf{1}\!\left[P(p > p_0 \mid x_\text{int}+x_r,\, N) \geq \gamma_\text{final}\right] .
+\sum_{x_\mathrm{rem}=0}^{N - n_\text{int}}
+\text{BetaBin}(x_\mathrm{rem};\; N-n_\text{int},\;
+a_\text{post},\; b_\text{post})
+\cdot \mathbf{1}\!\left[P(p > p_0 \mid
+x_\text{int}+x_\mathrm{rem},\, N) \geq \gamma_\text{final}\right] .
 $$
 
 At the interim, the trial stops early for efficacy when the posterior
-$P(p > p_0 \mid x_1,n_1) \geq \gamma_\text{int}$. Otherwise, it stops
+$P(p > p_0 \mid x_\mathrm{int},n_\mathrm{int}) \geq
+\gamma_\text{int}$. Otherwise, it stops
 for futility when $\mathrm{PP}\leq0.05$, increases the sample size when
-$0.05<\mathrm{PP}<\mathrm{PP}_U$, and continues to $N_0$ without an
+$0.05<\mathrm{PP}<\mathrm{PP}_U$, and continues to
+$N_\mathrm{init}$ without an
 increase when $\mathrm{PP}\geq\mathrm{PP}_U$, with $\mathrm{PP}_U=0.50$
 in the base design. In the increase zone, the smallest $N\leq N_{\max}$
 that raises PP to $\mathrm{PP}_U$ is selected; if no such value exists,
@@ -603,14 +628,14 @@ choice is operational rather than error-controlling, we also assess upper
 boundaries from 0.30 to 0.70. We fix $\gamma_\text{int}=0.99$; a value of
 0.95 would itself yield
 `r percent(1 - pbinom(x_crit_fn(n_int, p0, ap, bp, 0.95) - 1L, n_int, p0), accuracy = 0.01)`
-null rejection at $n_1=65$ before the SSR branch is evaluated.
+null rejection at $n_\mathrm{int}=65$ before the SSR branch is evaluated.
 We prespecify a sweep of $\gamma_\text{final}$ over
 $\{0.950, 0.955, \ldots, 0.990\}$ and select the smallest grid value whose
 exact null rejection probability does not exceed $\alpha$. This rule is
 available prospectively because it uses only the prespecified design and
 exact enumeration under $p=p_0$; it selects $`r gamma_fin_cal`$ in the
 base design. The
-final analysis declares success when the posterior at $n_\text{final}$
+final analysis declares success when the posterior at the realized total $N$
 reaches or exceeds $\gamma_\text{final}$.
 
 
@@ -651,12 +676,13 @@ Six true ORR scenarios are evaluated: $p_0$, three intermediate values
 $\Delta = p_1 - p_0$), $p_1$, and an over-performing arm
 $p_1 + 0.25\Delta$. For each design we report power (or Type I error
 when $p = p_0$), expected sample size $E[N]$, zone probabilities,
-budget-cap probability, and the $p10$/$p50$/$p90$ quantiles of
-$n_\text{final}$. Generalizability is assessed by repeating the
+budget-cap probability, and the $p10$/$p50$/$p90$ quantiles of the realized
+total sample size $N$. Generalizability is assessed by repeating the
 CP $\text{CP}_L$ sweep across five distinct $(p_0, p_1, n_\text{int},
-N_\text{init}, N_\text{max})$ settings. All code is in R 4.x with
-Quarto; the manuscript is fully reproducible from this `.qmd`. Practice-
-oriented sensitivities additionally evaluate a coherently specified
+N_\text{init}, N_\text{max})$ settings. All code is in R $\geq 4.4$ with
+Quarto; the article and supplement are fully reproducible from the public
+repository described in the Code and Data Availability section.
+Practice-oriented sensitivities additionally evaluate a coherently specified
 continuity-corrected score design, a 0.001 posterior-threshold grid,
 departures of the actual untreated response rate from the historical
 benchmark, and exact bias and naive 95% interval coverage after adaptation.
@@ -665,13 +691,43 @@ exact calculations.
 Separately, `R/independent_validation.R` reimplements the base design in base
 R without sourcing the manuscript engine or parameter file and reproduces six
 selected fixed and adaptive operating characteristics.
-No method is optimized under a common power, expected-sample-size, or maximum-
-sample-size constraint. Cross-method power and efficiency differences are
+No method is optimized under a common power, expected-sample-size, or
+maximum-sample-size constraint. Cross-method power and efficiency differences are
 therefore comparisons of the prespecified operating points, not rankings of
 the best achievable versions of the methods.
 
 
 # Results
+
+@tbl-results-map links every Results subsection to the display that
+carries its primary evidence and to the supplementary source tables or
+figures containing the corresponding numerical detail. Percentages quoted
+in the text use the same precision as those source tables.
+
+```{r tbl-results-map}
+#| tbl-cap: "Section 4 results map. Main displays carry the argument; supplementary sources provide the quoted values and full operating-characteristic grids."
+
+tribble(
+  ~Subsection, ~`Main display`, ~`Supplementary source`,
+  "4.1 CP promising zone", "Figure 1", "Tables S1 and S15; Figure S4",
+  "4.2 Critical-count mechanism", "Table 2", "Tables S13, S17, and S20; Figure S2",
+  "4.3 Bayesian PP calibration", "Figure 2", "Table S2",
+  "4.4 Joint calibration and futility", "--", "Tables S12, S13, and S20",
+  "4.5 Generalizability", "Figure 3", "Tables S14 and S20; Figure S1",
+  "4.6 Final rule and mapping", "Figure 4", "Tables S3, S4, S15, S19, and S20; Figure S4",
+  "4.7 Combination comparator", "Table 3", "Table S18",
+  "4.8 PP boundary and composite null", "--", "Tables S5 and S16",
+  "4.9 Interim timing", "Figure 5", "Tables S6, S7, and S20",
+  "4.10 Two-look sensitivity", "--", "Tables S9 and S20",
+  "4.11 Practice-oriented checks", "--", "Tables S8, S10, S11, and S20; Figure S3"
+) |>
+  gt() |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_column_labels()
+  ) |>
+  tab_options(table.width = pct(100), table.font.size = px(9))
+```
 
 
 ## CP Promising Zone: Attained Level Relative to the Fixed-$N$ Reference
@@ -715,7 +771,7 @@ $\text{CP}_U$, the futility boundary, and the $0.05$ final level are
 held fixed. Supplementary Table S1 reports power at $p = p_1$ alongside
 T1E at each $\text{CP}_L$. Section 4.2 decomposes the inherited fixed-$N$ score-$z$
 bias and the signed changes produced when SSR moves trials between
-integer critical counts; @fig-generalizability then shows that the
+integer critical counts; Section 4.5 then shows that the
 *direction* of the attained-level bias changes from one design
 configuration to another, so the base-setting excess is not universal.
 
@@ -913,7 +969,7 @@ Three sources determine the pattern, in descending order of magnitude.
 First, the nominal score-$z$ threshold maps to a design-specific integer
 critical count and therefore an attained fixed-$N$ level that can lie above
 or below $\alpha$. It is above $\alpha$ in the base setting, whereas
-@fig-generalizability includes settings in which it is below. Second,
+Section 4.5 includes settings in which it is below. Second,
 futility removes null trials before the final analysis. Third and smallest,
 SSR moves surviving trials among finite-$N$ tests with different attained
 levels. Supplementary Table S13 quantifies the futility contribution, and
@@ -948,15 +1004,17 @@ the boundary-crossing effect the primary mechanism.
 ```{r crit-count-setup}
 #| cache: true
 
-# Critical counts under all four final rules across the realized range of N.
-# Every design in this paper rejects iff x_total >= crit, so two rules sharing
+# Critical counts under all four final rules across a diagnostic candidate
+# range. Every design in this paper rejects iff X_N >= crit, so two rules sharing
 # a critical count at a given N ARE the same test at that N. This table is the
 # direct evidence for the paper's central claim.
 crit_n_show <- c(n_int, n_init, 100L, 120L, 150L, n_max)
 crit_show <- crit_count_table(crit_n_show, p0 = p0, alpha = alpha,
                               ap = ap, bp = bp, gamma_fin = gamma_fin_cal)
 
-# Full realized range, for the summary statistics quoted in prose.
+# Candidate range from the interim sample size to the enrollment cap. The
+# planned-or-larger subset is the range at which a continuing trial can
+# conduct its final analysis.
 crit_full <- crit_count_table(seq.int(n_int, n_max), p0 = p0, alpha = alpha,
                               ap = ap, bp = bp, gamma_fin = gamma_fin_cal)
 crit_wide <- crit_full |>
@@ -971,6 +1029,46 @@ n_total_grid  <- nrow(crit_wide)
 lvl_exceed <- crit_full |>
   group_by(rule) |>
   summarise(frac_above = mean(t1e > alpha), max_lvl = max(t1e), .groups = "drop")
+
+n_z_above_alpha <- crit_full |>
+  filter(rule == "z") |>
+  summarise(n = sum(t1e > alpha)) |>
+  pull(n)
+
+critical_summary_for <- function(wide, long, range_label) {
+  tibble(
+    Range = range_label,
+    Comparison = c(
+      "score-z count < exact-binomial count",
+      "score-z count > exact-binomial count",
+      "score-z attained level > 5%",
+      "posterior count = exact-binomial count",
+      "all four critical counts agree"
+    ),
+    Count = c(
+      sum(wide$z < wide$exact),
+      sum(wide$z > wide$exact),
+      sum(long$t1e[long$rule == "z"] > alpha),
+      sum(wide$posterior == wide$exact),
+      sum(wide$z == wide$z_cc & wide$z == wide$exact &
+            wide$z == wide$posterior)
+    ),
+    Total = nrow(wide)
+  ) |>
+    mutate(Fraction = Count / Total)
+}
+
+critical_count_summary <- bind_rows(
+  critical_summary_for(
+    crit_wide, crit_full,
+    glue("Candidate range: N={n_int},...,{n_max}")
+  ),
+  critical_summary_for(
+    filter(crit_wide, n >= n_init),
+    filter(crit_full, n >= n_init),
+    glue("Planned-or-larger range: N={n_init},...,{n_max}")
+  )
+)
 
 # Compare the posterior and exact-binomial rules over the candidate range and
 # over sample sizes actually reached by the calibrated PP mapping.
@@ -1010,19 +1108,22 @@ pp_exact_power <- bayes_oc_exact_final(
 ```
 
 The uncorrected score-$z$ rule is not merely one discrete rule among
-several. Across the realized range $N \in [`r n_int`, `r n_max`]$ its
+several. Across the diagnostic candidate range
+$N \in [`r n_int`, `r n_max`]$ its
 integer critical count is **strictly below** the exact-binomial count at
 `r n_z_below_e` of `r n_total_grid` sample sizes and **never above it**
 (`r n_z_above_e` of `r n_total_grid`). A uniformly smaller critical count
 is a uniformly larger rejection region, which is precisely why its
 attained level exceeds $\alpha$ at
-`r percent(lvl_exceed$frac_above[lvl_exceed$rule == "z"], accuracy = 1)`
+`r percent(lvl_exceed$frac_above[lvl_exceed$rule == "z"], accuracy = 0.1)`
 of sample sizes while the exact rule never does. The continuity-corrected
 $z$ agrees with the exact count almost everywhere, which localises the
-problem to the approximation rather than to the integer grid.
+problem to the approximation rather than to the integer grid. These
+counts are tabulated in Supplementary Table S17, together with the
+planned-or-larger final-analysis range $N \in [`r n_init`, `r n_max`]$.
 
 ```{r tbl-crit-count}
-#| tbl-cap: "Integer critical count under each final decision rule, with the attained fixed-$N$ Type I error. Every design considered here rejects when $x_\\text{total} \\geq c$, so rules sharing a critical count at a given $N$ are the same test at that $N$. The uncorrected score-$z$ count is never larger than the exact-binomial count, and is often smaller; the continuity-corrected $z$, the exact binomial, and the posterior rule agree far more often with each other than any of them does with the uncorrected $z$."
+#| tbl-cap: "Integer critical count under each final decision rule, with the attained fixed-$N$ Type I error. Every design considered here rejects when $X_N \\geq c$, so rules sharing a critical count at a given $N$ are the same test at that $N$. The uncorrected score-$z$ count is never larger than the exact-binomial count, and is often smaller; the continuity-corrected $z$, the exact binomial, and the posterior rule agree far more often with each other than any of them does with the uncorrected $z$."
 
 crit_show |>
   mutate(cell = paste0(crit, " (", percent(t1e, accuracy = 0.01), ")")) |>
@@ -1082,7 +1183,9 @@ the final boundary by the exact-binomial rule gives
 `r percent(pp_exact_t1e, accuracy = 0.01)` and
 `r percent(pp_exact_power, accuracy = 0.01)`. Bayesian control in this
 example therefore comes from prospective calibration of the complete PP
-design, not from reproducing the exact test.
+design, not from reproducing the exact test. Supplementary Table S17 reports
+the corresponding critical-count agreement counts, and Supplementary Table
+S20 reports the reached sample sizes and both operating-characteristic pairs.
 
 
 
@@ -1366,6 +1469,7 @@ $\text{CP}_L$ grid. Both are small against the
 `r sprintf("%.2f", 100 * headline_final_rule_fixed)`-point contrast
 produced by changing the final decision rule at fixed $N$, where no
 adaptation is involved at all.
+Supplementary Table S20 reports the full-grid mapping range quoted here.
 
 
 ## Generalizability
@@ -1630,15 +1734,14 @@ pp_gen_n_set  <- dplyr::n_distinct(gen_pp_results$scenario_label)
 
 The smallest controlling $\gamma_\mathrm{final}$ differs across
 configurations, ranging from `r min(pp_gen_ctrl$gamma_fin)` to
-`r max(pp_gen_ctrl$gamma_fin)` among the
-`r pp_gen_n_ctrl` of `r pp_gen_n_set` settings in which any evaluated
-threshold controls the level. A threshold of
+`r max(pp_gen_ctrl$gamma_fin)` across all `r pp_gen_n_set` settings. A threshold of
 `r max(pp_gen_ctrl$gamma_fin)` therefore controls Type I error in all of
 them, but it is the least conservative choice in only one; elsewhere it
 spends well under the budget and gives away power unnecessarily. Selecting
 a threshold that both controls the level and comes close to spending it
 requires enumeration in the design at hand. Supplementary Figure S1 shows
-the full sweep in each setting.
+the full sweep in each setting; Supplementary Table S20 reports the quoted
+within-setting spread and calibration range.
 
 
 ## Final-Rule and Adaptation-Mapping Comparison {#sec-factorial}
@@ -2034,6 +2137,8 @@ every combination. The ordering reported above is therefore a property of
 the level-controlling region of the grid rather than of one threshold
 pair, but it is not a property of the grid as a whole. Supplementary
 Table S4 gives the ranges.
+Supplementary Table S20 additionally reports the exact count of grid
+combinations for which the final-rule contrast is larger.
 
 The sensitivity ranges confirm that the numerical contrasts are
 threshold-specific; they are descriptive evidence for the base design, not
@@ -2050,7 +2155,8 @@ coherent_pp_z_t1e <- bayes_oc_ztest_final(
 A coherent PP-$z$ design that recalculates PP against the $z$ boundary,
 rather than freezing the posterior-target mapping, has
 `r percent(coherent_pp_z_t1e, accuracy = 0.01)` Type I error. It is reported
-separately because both the adaptation mapping and final rule change.
+separately because both the adaptation mapping and final rule change
+(Supplementary Table S19).
 
 
 ## Combination-Test Comparator
@@ -2058,7 +2164,8 @@ separately because both the adaptation mapping and final rule change.
 The inverse-normal combination test retains the CP adaptation mapping but
 uses stagewise binomial evidence. We choose the conventional planned
 information-fraction weights
-$w_1=\sqrt{n_1/N_0}$ and $w_2=\sqrt{1-n_1/N_0}$ before the trial and reject
+$w_1=\sqrt{n_\mathrm{int}/N_\mathrm{init}}$ and
+$w_2=\sqrt{1-n_\mathrm{int}/N_\mathrm{init}}$ before the trial and reject
 when
 
 $$w_1\Phi^{-1}(1-P_1)+w_2\Phi^{-1}(1-P_2)>z_{1-\alpha}.$$
@@ -2157,7 +2264,9 @@ $p$-values are not super-uniform, this control is incidental to the
 particular grid point rather than guaranteed, and it cannot be relied on
 without exact verification of the specific design. That is precisely the
 distinction the exact version removes: its validity follows from the
-invariance argument and does not require checking.
+invariance argument and does not require checking. Supplementary Table S18
+reports both combination-test variants over the full
+$\mathrm{CP}_L$ grid.
 
 The exact version therefore supplies a constructive binary implementation of
 the fixed-weight combination-test framework discussed alongside promising-zone
@@ -2329,6 +2438,7 @@ final by the exact-binomial final changes it by
 `r sprintf("%.2f", 100 * timing_final_delta_min)` to
 `r sprintf("%.2f", 100 * timing_final_delta_max)` points. The exact final
 controls at every evaluated timing and $\text{CP}_L$.
+Supplementary Table S20 reports these full-grid extrema.
 
 ```{r fig-interim-timing}
 #| fig-cap: "Sensitivity to the timing of the single interim look. Left: exact CP-$z$ Type I error across the promising-zone grid at four information fractions; the fixed-$N$ score-$z$ reference has no interim look. Right: signed Type I error contrasts at $\\text{CP}_L=0.50$. The complete-design contrast includes futility, the mapping-only contrast disables futility, and the final-rule contrast freezes the CP mapping while replacing the score-$z$ final with the exact-binomial final. All values are from exact enumeration."
@@ -2391,7 +2501,7 @@ p_timing_delta <- timing_delta_plot |>
   ) +
   labs(
     x = "Interim information fraction",
-    y = "Type I error contrast (percentage points)",
+    y = "T1E contrast (percentage points)",
     color = NULL,
     shape = NULL
   ) +
@@ -2442,6 +2552,7 @@ and the full grid, the mapping-only contribution is at most
 absolute value, versus `r sprintf("%.2f", 100 * two_look_final_min)` to
 `r sprintf("%.2f", 100 * two_look_final_max)` points for the final-rule
 contrast; the frozen-mapping exact final controls throughout.
+Supplementary Table S20 reports these extrema over both complete grids.
 
 This bounded check is not a multiple-look theorem. Null futility is
 `r percent(two_look_early$pr_fut_null, accuracy = 0.1)` and
@@ -2481,7 +2592,8 @@ while the design tests against $p_0=0.23$, positive-decision probabilities are
 for CP-$z$ and
 `r percent(historical_drift_results |> filter(abs(p_actual - 0.25) < 1e-12, Design == "PP + posterior") |> pull(positive_probability), accuracy = 0.01)`
 for PP-posterior. These are decision-risk probabilities, not Type I error
-under the formal null. The unadjusted MLE has absolute bias at most
+under the formal null; Supplementary Table S20 reports both quoted values.
+The unadjusted MLE has absolute bias at most
 `r sprintf("%.3f", max(abs(estimation_sensitivity$bias)))`; nominal 95%
 Clopper--Pearson coverage [@clopper1934] ranges from
 `r percent(min(estimation_sensitivity$exact_coverage), accuracy = 0.1)` to
@@ -2503,6 +2615,45 @@ Supplementary Tables S8, S10, and S11 and Figure S3 report the details.
 # supplementary tables show the same numbers as the main text by construction.
 #
 # Build order: render this manuscript first, then the supplement.
+section4_source_summary <- tribble(
+  ~Section, ~Quantity, ~Value,
+  "4.2", "PP mapping + posterior final: T1E / power",
+  glue("{percent(pp_post_t1e, accuracy = 0.01)} / {percent(pp_post_power, accuracy = 0.01)}"),
+  "4.2", "PP mapping + exact-binomial final: T1E / power",
+  glue("{percent(pp_exact_t1e, accuracy = 0.01)} / {percent(pp_exact_power, accuracy = 0.01)}"),
+  "4.2", "Final sample sizes reached by the calibrated PP mapping",
+  paste(pp_reached_n, collapse = ", "),
+  "4.4", "Mapping-only T1E contrast over the CP_L grid",
+  sprintf("%+.2f to %+.2f percentage points",
+          100 * min(headline_ssr_only), 100 * max(headline_ssr_only)),
+  "4.5", "Largest within-setting CP_L T1E spread",
+  sprintf("%.2f percentage points", 100 * gen_max_spread),
+  "4.5", "Smallest controlling gamma_final across settings",
+  sprintf("%.3f to %.3f", min(pp_gen_ctrl$gamma_fin),
+          max(pp_gen_ctrl$gamma_fin)),
+  "4.6", "Final-rule contrast larger in absolute value",
+  glue("{fs_n_final_wins} of {fs_n_total} grid combinations"),
+  "4.9", "Largest absolute mapping-only T1E contrast over timing x CP_L",
+  sprintf("%.2f percentage points", 100 * timing_mapping_abs_max),
+  "4.9", "Final-rule T1E contrast over timing x CP_L",
+  sprintf("%.2f to %.2f percentage points",
+          100 * timing_final_delta_min, 100 * timing_final_delta_max),
+  "4.10", "Largest absolute mapping-only T1E contrast over two-look grids",
+  sprintf("%.2f percentage points", 100 * two_look_mapping_abs_max),
+  "4.10", "Final-rule T1E contrast over two-look grids",
+  sprintf("%.2f to %.2f percentage points",
+          100 * two_look_final_min, 100 * two_look_final_max),
+  "4.11", "Positive-decision probability at actual untreated rate 0.25: CP + z",
+  percent(historical_drift_results |>
+            filter(abs(p_actual - 0.25) < 1e-12, Design == "CP + z") |>
+            pull(positive_probability), accuracy = 0.01),
+  "4.11", "Positive-decision probability at actual untreated rate 0.25: PP + posterior",
+  percent(historical_drift_results |>
+            filter(abs(p_actual - 0.25) < 1e-12,
+                   Design == "PP + posterior") |>
+            pull(positive_probability), accuracy = 0.01)
+)
+
 saveRDS(
   list(
     cp_sweep              = cp_sweep,
@@ -2528,6 +2679,10 @@ saveRDS(
     pp_fine_selected      = pp_fine_selected,
     historical_drift_results = historical_drift_results,
     estimation_sensitivity = estimation_sensitivity,
+    critical_count_summary = critical_count_summary,
+    comb_results           = comb_results,
+    coherent_pp_z_t1e      = coherent_pp_z_t1e,
+    section4_source_summary = section4_source_summary,
     gamma_fin_selected    = gamma_fin_selected,
     scen_label_tbl        = scen_label_tbl
   ),
@@ -2552,7 +2707,8 @@ contrast compares two mappings rather than adaptation with no adaptation.
 
 The mechanism is approximation error rather than discreteness. Exact,
 posterior, and score rules all reduce to integer rejection counts, but over
-the reachable sample sizes the uncorrected score-$z$ count is never larger
+the diagnostic candidate range $N=n_\mathrm{int},\ldots,N_\mathrm{max}$
+the uncorrected score-$z$ count is never larger
 than the exact count and is often smaller. That relation is verified for
 this design, not proved generally. The design-fixed inverse-normal
 combination test instead obtains validity from super-uniform stagewise
@@ -2658,12 +2814,11 @@ historical-control validity or post-adaptation inference.
 
 # Code and Data Availability
 
-The analysis code is available in an anonymous R/Quarto repository at
-<https://anonymous.4open.science/r/CP-SSR-Binary-Trials-8DB8/>. The non-anonymized public repository will be
-disclosed after acceptance. The repository
-contains the article and supplement sources, design constants, analysis
-functions, sensitivity scripts, regression checks, and anonymization utility.
-No external data are used. Every reported operating characteristic is
+The public R/Quarto repository
+<https://github.com/evidenceinthewild/CP-SSR-Binary-Trials> contains the
+article and supplement sources, design constants, analysis functions,
+sensitivity scripts, and regression checks. No
+external data are used. Every reported operating characteristic is
 computed by exact enumeration, using the one-look engine or the repeated-look
 recursion. A seeded Monte Carlo run is the sole stochastic element; it is a
 shared-helper validation check and supplies no reported operating
